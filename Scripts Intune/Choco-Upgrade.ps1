@@ -1,0 +1,1 @@
+﻿choco upgrade all
