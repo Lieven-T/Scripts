@@ -71,16 +71,6 @@ Get-DynamicDistributionGroup | ? {$_.Name -match "^leerlingen\." -and ($_.Name -
     Remove-DynamicDistributionGroup -Identity $_.Id -Confirm:$false
 }
 
-# Cleanup klassenraden
-<#Get-AzureADGroup -SearchString "$($YearCode)KR_" -All $true | % {
-    Write-Host "Opkuisen $($_.DisplayName)"
-    $GroupId = $_.ObjectId
-    Get-AzureADGroupMember -ObjectId $_.ObjectId | ? UserPrincipalName -Match "@student\.romerocollege" | % {
-        Write-Host "    Schrappen $($_.UserPrincipalName)"
-        Remove-AzureADGroupMember -ObjectId $GroupId -MemberId $_.ObjectId
-    }
-}#>
-
 
 ###############
 ### SYNC SP ###
@@ -113,7 +103,7 @@ Import-Excel "$FileLocation\teams.xlsx" | Select -ExpandProperty Klas -Unique | 
     $Channel = Get-TeamChannel -GroupId $Team.GroupId | ? DisplayName -EQ $StudentDocs
     if (-not $Channel) {
         Write-Host "    Kanaal aanmaken..."
-        $Channel = New-TeamChannel -GroupId $Team.GroupId -DisplayName $StudentDocs
+        $Channel = New-TeamChannel -GroupId $Team.GroupId -DisplayName $StudentDocs -ErrorAction Stop
         Set-PnPFolderPermission -List $SharedDocs -Identity "$SharedDocs/$StudentDocs" -Group $Members -AddRole $ReadRole -ClearExisting
     }
     $SubFolders = Get-PnPFolderItem -FolderSiteRelativeUrl "$SharedDocsName/$StudentDocs"
