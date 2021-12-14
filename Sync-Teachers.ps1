@@ -33,22 +33,23 @@ try {
 
 $Users = $InputData | Select -Property $ClassColumn,$TeacherColumn,$RoleColumn -Unique
 $Users | % {
-    $_.$ClassColumn = $_.$ClassColumn -replace "\d{4}_KR_",""
+    $_.$ClassColumn = $_.$ClassColumn -replace "\d{4}_",""
     $_.$TeacherColumn = $(($_.$TeacherColumn -split "@")[0])
 }
-$ClassCodes = $Users | Select -Unique -ExpandProperty $ClassColumn
 
-# Klassen ophalen
 $Classes = for($i = 1;$i -lt 8; $i++) { 
     Get-AzureADGroup -Filter "startswith(displayname,'$($YearCode)$i')" -All $true
 }
 
-$Users | % {
-    # Leraar toevoegen aan klas
-    Write-Host "Toevoegen van $($_.$TeacherColumn) aan klas $($_.$ClassColumn)"
-    $Class = $Classes | ? DisplayName -EQ "$YearCode$($_.$ClassColumn)"
-    $User = Get-AzureADUser -Filter "UserPrincipalName eq '$($_.$TeacherColumn)@romerocollege.be'"
-    Add-AzureADGroupOwner -ObjectId $Class.ObjectId -RefObjectId $User.ObjectId
+$Classes | % {
+    $Class = $_
+    $Users | ? { 
+        ($_.$ClassColumn -eq ($_.DisplayName -replace $YearCode,"")) -and ($_.$TeacherColumn -notin (Get-AzureADGroupOwner -ObjectId $Class.ObjectId | select -ExpandProperty UserPrincipalName | % { ($_ -split "@")[0] } ) )
+    } | % {
+        Write-Host "Toevoegen van $($_.$TeacherColumn) aan klas $($_.$ClassColumn)"
+        $User = Get-AzureADUser -Filter "UserPrincipalName eq '$($_.$TeacherColumn)@romerocollege.be'"
+        Add-AzureADGroupOwner -ObjectId $Class.ObjectId -RefObjectId $User.ObjectId
+    }
 }
 
 # ADWeaver schrappen als eigenaar van klas
