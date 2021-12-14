@@ -31,7 +31,11 @@ try {
 
 [string]$YearCode = "2122_"
 
-$Users = $InputData | Select -Property $ClassColumn,$TeacherColumn -Unique
+$Users = $InputData | Select -Property $ClassColumn,$TeacherColumn,$RoleColumn -Unique
+$Users | % {
+    $_.$ClassColumn = $_.$ClassColumn -replace "\d{4}_KR_",""
+    $_.$TeacherColumn = $(($_.$TeacherColumn -split "@")[0])
+}
 $ClassCodes = $Users | Select -Unique -ExpandProperty $ClassColumn
 
 # Klassen ophalen
@@ -43,7 +47,7 @@ $Users | % {
     # Leraar toevoegen aan klas
     Write-Host "Toevoegen van $($_.$TeacherColumn) aan klas $($_.$ClassColumn)"
     $Class = $Classes | ? DisplayName -EQ "$YearCode$($_.$ClassColumn)"
-    $User = Get-AzureADUser -Filter "UserPrincipalName eq '$($_.$TeacherColumn)'"
+    $User = Get-AzureADUser -Filter "UserPrincipalName eq '$($_.$TeacherColumn)@romerocollege.be'"
     Add-AzureADGroupOwner -ObjectId $Class.ObjectId -RefObjectId $User.ObjectId
 }
 
