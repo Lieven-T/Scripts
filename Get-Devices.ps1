@@ -1,5 +1,5 @@
 ﻿Connect-AzureAD
-Get-AzureADDevice | ? DeviceTrustType -eq "AzureAD" | % {
+Get-AzureADDevice -All $true | ? DeviceTrustType -eq "AzureAD" | % {
     $User = $_ | Get-AzureADDeviceRegisteredOwner
 
     $Props = @{

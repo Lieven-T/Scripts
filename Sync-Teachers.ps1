@@ -36,12 +36,13 @@ $Users | % {
     $_.$ClassColumn = $_.$ClassColumn -replace "\d{4}_",""
     $_.$TeacherColumn = $(($_.$TeacherColumn -split "@")[0])
 }
+$ClassCodes = $Users | Select -ExpandProperty $ClassColumn -Unique | % { "$YearCode$_" }
 
 $Classes = for($i = 1;$i -lt 8; $i++) { 
     Get-AzureADGroup -Filter "startswith(displayname,'$($YearCode)$i')" -All $true
 }
 
-$Classes | % {
+$Classes | ? { ($_.DisplayName -in $ClassCodes } | % {
     $Class = $_
     $Users | ? { 
         ($_.$ClassColumn -eq ($_.DisplayName -replace $YearCode,"")) -and ($_.$TeacherColumn -notin (Get-AzureADGroupOwner -ObjectId $Class.ObjectId | select -ExpandProperty UserPrincipalName | % { ($_ -split "@")[0] } ) )

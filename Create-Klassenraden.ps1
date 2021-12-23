@@ -45,6 +45,7 @@ $Users | % {
     $_.$TeacherColumn = $(($_.$TeacherColumn -split "@")[0])
 }
 $ClassCodes = $Users | Select -Unique -ExpandProperty $ClassColumn
+$ClassCodesFull = $ClassCodes | % { "$YearCode$_" }
 
 # Klassenraden aanmaken
 $Klassenraden = Get-AzureADGroup -SearchString $YearCode -All $true
@@ -60,7 +61,7 @@ $ClassCodes | ? { $_ -notin $TeamCodeList } | % {
     }
 }
 
-Get-AzureADGroup -SearchString $YearCode -all $True | % {
+Get-AzureADGroup -SearchString $YearCode -all $True | ? { $_.DisplayName -in $ClassCodesFull } | % {
     $Klas = $_
     Write-Host "Verwerken klassenraad $($Klas.DisplayName)"
     $CurrentMembers = @() + (Get-AzureADGroupMember -ObjectId $klas.ObjectId) + (Get-AzureADGroupOwner -ObjectId $klas.ObjectId) | select -ExpandProperty UserPrincipalName | % { ($_ -split "@")[0] }
