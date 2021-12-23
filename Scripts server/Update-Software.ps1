@@ -213,7 +213,7 @@ if(-not(Test-Path C:\ProgramData\chocolatey\choco.exe)){
 # UPDATES #
 ###########
 
-Get-Package | ? Name -match "Acrobat Reader" | ? Name -NotMatch "MUI" | Uninstall-Package -Force -Confirm:$false
+$InstalledPrograms | ? Name -match "Acrobat Reader" | ? Name -NotMatch "MUI" | Uninstall-Package -Force -Confirm:$false
 Update-Software -Program "Avigilon" -SourceType msi -Target "SECRWM\-LK|SECRWM2\-LK|JEFF\-LT"
 Update-Software -Program "eMindMaps" -SourceType named -Params "/S"
 Update-Software -Program "Winfakt" -SourceType script -DestType manual -ExePath "C:\WinFakt-Scholen\WinFakt.exe" -NoVersionCheck $true -Target "H303"
@@ -222,6 +222,7 @@ Update-Software -Program "Chemsketch" -SourceType script -DestType manual -ExePa
 Update-Software -Program "graphmatica" -SourceType msi -Target "-LK"
 Update-Software -Program "sprint" -SourceType script -DestType manual -ExePath "C:\Program Files (x86)\SprintPlus 3\sprint.exe" -Target "G002|SECREIT\-LT|STUDIOCVD|JEFF\-LT"
 Update-Software -Program "TI-SmartView CE-T" -SourceType script -Target "-LK"
+Update-Software -Program "Uniflow" -SourceType msi -NoVersionCheck $true -Target "SECR(WM(2)?|EIT)\-LK|(JEFF|DKIKA|STEPI|LIESBETH)\-LT|G004"
 
 c:\ProgramData\Chocolatey\choco.exe upgrade googlechrome firefox adobereader microsoft-teams.install libreoffice 7zip gimp audacity libreoffice notepadplusplus openshot vlc paint.net r r.studio laps geogebra-classic.install --noprogress
 c:\ProgramData\Chocolatey\choco.exe pin add -n=googlechrome
@@ -235,8 +236,6 @@ if ($env:COMPUTERNAME -match "F114|F215|F303|G002|G201|G204|H002|H003|H101|H107|
         c:\ProgramData\Chocolatey\choco.exe upgrade veyon --params '"/Config:\\campus\util\software\_updates\Veyon\veyon.json"' --noprogress
     }
 }
-
-# Update-Software -Program "Belgium e-ID middleware" -SourceType msi -Target "-LK" -NoVersionCheck $true
 
 Pop-Location
 
