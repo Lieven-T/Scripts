@@ -222,7 +222,7 @@ Update-Software -Program "Chemsketch" -SourceType script -DestType manual -ExePa
 Update-Software -Program "graphmatica" -SourceType msi -Target "-LK"
 Update-Software -Program "sprint" -SourceType script -DestType manual -ExePath "C:\Program Files (x86)\SprintPlus 3\sprint.exe" -Target "G002|SECREIT\-LT|STUDIOCVD|JEFF\-LT"
 Update-Software -Program "TI-SmartView CE-T" -SourceType script -Target "-LK"
-Update-Software -Program "Uniflow" -SourceType msi -NoVersionCheck $true -Target "SECR(WM(2)?|EIT)\-LK|(JEFF|DKIKA|STEPI|LIESBETH)\-LT|G004"
+Update-Software -Program "Uniflow" -SourceType msi -NoVersionCheck $true -Target "SECR(WM(2)?|EIT)\-LK|(JEFF|DKIKA|STEPI|LIESBETH)\-LT|G004|G002\-LK2"
 
 c:\ProgramData\Chocolatey\choco.exe upgrade googlechrome firefox adobereader microsoft-teams.install libreoffice 7zip gimp audacity libreoffice notepadplusplus openshot vlc paint.net r r.studio laps geogebra-classic.install --noprogress
 c:\ProgramData\Chocolatey\choco.exe pin add -n=googlechrome
