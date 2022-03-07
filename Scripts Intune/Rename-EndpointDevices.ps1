@@ -60,12 +60,7 @@ foreach ($i in $FileList) {
             return
         }
         Write-Host "    $($Device.deviceName) -> $SignpostHostname"
-        $DeviceID = $Device.id
-        $Resource = "deviceManagement/managedDevices('$DeviceID')/setDeviceName"
-        $GraphApiVersion = "Beta"
-        $URI = "https://graph.microsoft.com/$graphApiVersion/$($resource)"
-        $JSONPayload = "{ deviceName:`"$SignpostHostname`" }"
-        Invoke-MSGraphRequest -HttpMethod POST -Url $uri -Content $JSONPayload
+        Invoke-MSGraphRequest -HttpMethod POST -Url "https://graph.microsoft.com/Beta/deviceManagement/managedDevices/$($Device.id)/setDeviceName" -Content "{ deviceName:`"$SignpostHostname`" }"
     }
 
     Write-Host "`nAUTOPILOT`n---------"
@@ -90,12 +85,6 @@ foreach ($i in $FileList) {
 
         Write-Host "    $($Device.displayName) -> $SignpostHostname"
         Write-Host "    $($Device.groupTag) -> $Leveringsnummer"
-        $DeviceID = $Device.id
-    
-        $graphApiVersion = "beta"
-        $Resource = "deviceManagement/windowsAutopilotDeviceIdentities"
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$DeviceID/UpdateDeviceProperties"
-        $JSONPayload = "{ displayName:`"$SignpostHostname`", groupTag: `"$Leveringsnummer`" }"
-        Invoke-MSGraphRequest -HttpMethod POST -Url $uri -Content $JSONPayload
+        Invoke-MSGraphRequest -HttpMethod POST -Url "https://graph.microsoft.com/Beta/deviceManagement/windowsAutopilotDeviceIdentities/$($Device.id)/UpdateDeviceProperties" -Content "{ displayName:`"$SignpostHostname`", groupTag: `"$Leveringsnummer`" }"
     }
 }

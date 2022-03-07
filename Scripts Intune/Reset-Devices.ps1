@@ -1,0 +1,2 @@
+Invoke-MSGraphRequest -HttpMethod GET -Url "https://graph.microsoft.com/Beta/deviceManagement/managedDevices/9a9f4929-1844-42d6-9b04-a944af20d634" -
+Invoke-MSGraphRequest -HttpMethod POST -Url "https://graph.microsoft.com/Beta/deviceManagement/managedDevices/9a9f4929-1844-42d6-9b04-a944af20d634/wipe" -Content "{keepEnrollmentData:`"true`", keepUserData:`"false`"}"
