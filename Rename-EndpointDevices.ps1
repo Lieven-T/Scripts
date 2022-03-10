@@ -30,6 +30,7 @@ Connect-MSGraph
 $Devices = Get-IntuneManagedDevice | Get-MSGraphAllPages
 $AutopilotDevices = Get-AutopilotDevice
 
+# TODO: batching
 foreach ($i in $FileList) {
     $InputFile = $i
     $InputFile -match "SP.*S\d" | Out-Null

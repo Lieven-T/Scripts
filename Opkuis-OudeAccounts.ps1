@@ -4,6 +4,7 @@
 ### OPKUIS ONBESTAANDE KLASSEN O365 ###
 #######################################
 
+# TODO: batching/herwerken
 Connect-AzureAD
 Connect-MicrosoftTeams
 $XmlFileLocation = "\\orc-dc1\c$\Program Files\ADWeaver\klassen"

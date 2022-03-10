@@ -14,23 +14,24 @@ $Classes = for($i = 1;$i -lt 8; $i++) {
 }
 
 # Klassen leegmaken
+# TODO: batching
 $Classes | % {
     $Class = $_
     Write-Host "Leegmaken klas $($Class.DisplayName)"
 
     $Team = Get-Team -DisplayName $Class.DisplayName 
     $GroupId = $Team.GroupId
-<#    Get-TeamChannel -GroupId $GroupId | ? MembershipType -EQ Private | % {
+    Get-TeamChannel -GroupId $GroupId | ? MembershipType -EQ Private | % {
         Remove-TeamChannel -GroupId $GroupId -DisplayName $_.DIsplayName
     }
     Set-AzureAdMsGroup -ID $_.Id -MembershipRuleProcessingState "Paused"
-    #>
     Write-Host "    Team archiveren"
     Set-TeamArchivedState -GroupId $GroupId -Archived $true -SetSpoSiteReadOnlyForMembers $true
 }
 
 
 # Klassenraden leegmaken
+# TODO: batching
 Get-AzureADGroup -Filter "startswith(displayname,'$($YearCode)KR')" -All $true | % {
     $Klassenraad = $_
     Write-Host "Leegmaken klassenraad $($Klassenraad.DisplayName)"

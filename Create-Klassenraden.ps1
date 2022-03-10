@@ -61,6 +61,7 @@ $ClassCodes | ? { $_ -notin $TeamCodeList } | % {
     }
 }
 
+# TODO: batching
 Get-AzureADGroup -SearchString $YearCode -all $True | ? { $_.DisplayName -in $ClassCodesFull } | % {
     $Klas = $_
     Write-Host "Verwerken klassenraad $($Klas.DisplayName)"
@@ -78,6 +79,7 @@ Get-AzureADGroup -SearchString $YearCode -all $True | ? { $_.DisplayName -in $Cl
 }
 
 # Mezelf schrappen als eigenaar van klassenraad
+# TODO: batching
 $User = get-azureaduser -searchstring "lieven.tronckoe"
 $Klassenraden | % {
     Write-Host "Mezelf schrappen uit klassenraad $($_.DisplayName)"

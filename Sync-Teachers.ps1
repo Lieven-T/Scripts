@@ -29,6 +29,7 @@ try {
     Connect-AzureAD
 }
 
+# TODO: batching/herwerken
 [string]$YearCode = "2122_"
 
 $Users = $InputData | Select -Property $ClassColumn,$TeacherColumn,$RoleColumn -Unique
@@ -42,7 +43,7 @@ $Classes = for($i = 1;$i -lt 8; $i++) {
     Get-AzureADGroup -Filter "startswith(displayname,'$($YearCode)$i')" -All $true
 }
 
-$Classes | ? { ($_.DisplayName -in $ClassCodes } | % {
+$Classes | ? { ($_.DisplayName -in $ClassCodes) } | % {
     $Class = $_
     $Users | ? { 
         ($_.$ClassColumn -eq ($_.DisplayName -replace $YearCode,"")) -and ($_.$TeacherColumn -notin (Get-AzureADGroupOwner -ObjectId $Class.ObjectId | select -ExpandProperty UserPrincipalName | % { ($_ -split "@")[0] } ) )
