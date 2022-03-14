@@ -5,12 +5,6 @@
     [string]$InputFile
 )
 
-if (-not (Get-InstalledModule Microsoft.Graph)) {
-    Install-PackageProvider -Name "NuGet" -Force
-    Set-PSRepository -Name "PSGallery" -InstallationPolicy Trusted
-    Install-Module Microsoft.Graph
-}
-
 $FileList = if ($input) {
     $input | select -ExpandProperty FullName
 } elseif ($InputFile) {
@@ -28,8 +22,6 @@ while ($Response.'@odata.nextLink') {
     $Response = Invoke-GraphRequest -Uri $Response.'@odata.nextLink'
     $EndpointDevices += $Response.value
 }
-$EndpointSerialNumbers = $EndpointDevices | select -ExpandProperty "serialNumber"
-
 
 $Response = Invoke-GraphRequest -Uri "https://graph.microsoft.com/beta/deviceManagement/windowsAutopilotDeviceIdentities"
 $AutopilotDevices = $Response.value
@@ -37,7 +29,6 @@ while ($Response.'@odata.nextLink') {
     $Response = Invoke-GraphRequest -Uri $Response.'@odata.nextLink'
     $AutopilotDevices += $Response.value
 }
-$AutopilotSerialNumbers = $EndpointDevices | select -ExpandProperty "serialNumber"
 
 foreach ($i in $FileList) {
     $InputFile = $i
@@ -53,7 +44,6 @@ foreach ($i in $FileList) {
     $ExcelData = Import-Excel -Path $InputFile
     Write-Host "`nENDPOINT`n--------"
     $DevicesToRename = @()
-    $i=0
     $ExcelData | % {
         $EndpointDevice = $EndpointDevices | ? serialNumber -eq $_.'Serienummer van apparaat'
         if (-not $EndpointDevice) { 
@@ -71,7 +61,7 @@ foreach ($i in $FileList) {
             $Headers = [PSCustomObject][Ordered]@{"Content-Type"="application/json"}
             $Body = [PSCustomObject][Ordered]@{ deviceName=$SignpostDeviceName}
             $DevicesToRename += [PSCustomObject][Ordered]@{
-                id=$i++
+                id=$EndpointDevice.id
                 Method="POST"
                 Url="deviceManagement/managedDevices/$($EndpointDevice.id)/setDeviceName"
                 Headers=$Headers
@@ -85,12 +75,15 @@ foreach ($i in $FileList) {
         $Request = @{}                
         $Request['requests'] = ($DevicesToRename[$i..($i+19)])
         $RequestBody = $Request | ConvertTo-Json -Depth 3
-        $Responses = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+        $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+        $Response.responses | ? status -ne "204" {
+            Write-Error "Probleem met $($_.id): $($_.error.message)"
+        }
+    
     }
 
     Write-Host "`nAUTOPILOT`n---------"
     $DevicesToRename = @()
-    $i=0
     $ExcelData | % {
         $AutopilotDevice = $AutopilotDevices | ? serialNumber -eq $_.'Serienummer van apparaat'
         if (-not $AutopilotDevice) { 
@@ -111,7 +104,7 @@ foreach ($i in $FileList) {
                 groupTag=$Leveringsnummer
             }
             $DevicesToRename += [PSCustomObject][Ordered]@{
-                id=$i++
+                id=$AutopilotDevice.id
                 Method="POST"
                 Url="deviceManagement/windowsAutopilotDeviceIdentities/$($AutopilotDevice.id)/updateDeviceProperties"
                 Headers=$Headers
@@ -125,7 +118,11 @@ foreach ($i in $FileList) {
         $Request = @{}                
         $Request['requests'] = ($DevicesToRename[$i..($i+19)])
         $RequestBody = $Request | ConvertTo-Json -Depth 3
-        $Responses = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+        $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+        $Response.responses | ? status -ne "204" {
+            Write-Error "Probleem met $($_.id): $($_.error.message)"
+        }
+    
     }
 
 }
