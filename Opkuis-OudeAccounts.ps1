@@ -1,37 +1,108 @@
 ﻿$YearCode = "2122_"
 
-#######################################
-### OPKUIS ONBESTAANDE KLASSEN O365 ###
-#######################################
+################################
+### OPKUIS LEGE KLASSEN O365 ###
+################################
 
 # TODO: batching/herwerken
-Connect-AzureAD
-Connect-MicrosoftTeams
+Connect-Graph
 $XmlFileLocation = "\\orc-dc1\c$\Program Files\ADWeaver\klassen"
-[System.Collections.ArrayList]$SmsClassList = @()
+$SmsClassList = @()
 $SmsClassList = Get-ChildItem $XmlFileLocation | % { ([xml](Get-Content -Path $_.FullName)).Objs.ChildNodes } | % { $_.'#text'}
-$GroupList = for($i = 1;$i -lt 8; $i++) { Get-AzureADGroup -Filter "startswith(displayname,'romerocollege_$i') or startswith(displayname,'romerocollege_cvw_$i')" -All $true }
 
-$GroupList | % {
-    $GroupName = $_.DisplayName 
-    $GroupId = $_.ObjectId
-    $ClassName = ($GroupName -split "_")[-1]
-    if ($ClassName -notin $SmsClassList) {
-        Write-Host "Foute klas: $ClassName"
-        $Lln = Get-AzureADGroupMember -ObjectId $_.ObjectId
-        if ($Lln) {
-            Write-Host "    ...heeft leerlingen"
-            $Lln | % { Remove-AzureADUser -ObjectId $_.ObjectId }
-        } else {
-            Get-Team -DisplayName "$YearCode$ClassName" | Remove-Team
-            Remove-AzureADGroup -ObjectId $GroupId
+$Groups = Get-MgGroup -Filter "startswith(displayName,'romerocollege')" -All
+$Groups = $Groups | ? { $_.DisplayName -Match "romerocollege.*_[1-7]" -and ($_.displayName -split "_")[1] -notin $SmsClassList }
+
+# ALLE GROEPLEDEN OPHALEN
+$GroupMembers = @()
+for($i=0;$i -lt $Groups.count;$i+=20){                                                                                                                                              
+    Write-Progress -Activity "Groepsleden zoeken..." -Status "$i/$($Groups.Count) gedaan" -PercentComplete ($i / $Groups.Count * 100)
+    $Request = @{}
+    $Request.requests = $Groups[$i..($i+19)] | % {
+        [PSCustomObject][Ordered]@{
+            id=$_.DisplayName
+            method='GET'
+            Url="/groups/$($_.id)/members"
         }
+    }
+    $RequestBody = $Request | ConvertTo-Json -Depth 3
+    $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+    $Response.responses | ? status -ne "200" | % {
+        Write-Error "Probleem met $($_.id): $($_.body.error.message)"
+    }
+    $GroupMembers += $Response.responses
+}
+
+$GroupsToRemove = @()
+$Groups | % {
+    if (($GroupMembers | ? id -eq $_.DisplayName).body.value.count) {
+        Write-Error "Ongeldige klas met leerlingen: $($_.DisplayName)"
+        return
+    }
+    $GroupsToRemove += [PSCustomObject][Ordered]@{
+        Id=$_.DisplayName
+        Method='DELETE'
+        Url="/groups/$($_.ID)"
     }
 }
 
+for($i=0;$i -lt $GroupsToRemove.count;$i+=20) {
+    Write-Progress -Activity "Ongeldige klassen verwijderen..." -Status "$i/$($GroupsToRemove.Count) gedaan" -PercentComplete ($i / $GroupsToRemove.Count * 100)
+    $Request = @{}           
+    $Request['requests'] = ($GroupsToRemove[$i..($i+19)])
+    $RequestBody = $Request | ConvertTo-Json -Depth 4
+    $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+    $Response.responses | ? status -ne "204" | % {
+        Write-Error "Probleem met $($_.id): $($_.body.error.message)"
+    }
+}
 
- Get-AzureADGroup -SearchString "trefpunt_" | ? DisplayName -Match "\d" | ? { -not (Get-AzureADGroupMember -ObjectId $_.ObjectId )} | % { Remove-AzureADGroup -ObjectId $_.ObjectId }
+######################
+# DEELTIJDS OPKUISEN #
+######################
 
+$Groups = Get-MgGroup -Filter "startswith(displayName,'trefpunt')" | ? DisplayName -Match "\d"
+# ALLE GROEPLEDEN OPHALEN
+$GroupMembers = @()
+for($i=0;$i -lt $Groups.count;$i+=20){                                                                                                                                              
+    Write-Progress -Activity "Groepsleden zoeken..." -Status "$i/$($Groups.Count) gedaan" -PercentComplete ($i / $Groups.Count * 100)
+    $Request = @{}
+    $Request.requests = $Groups[$i..($i+19)] | % {
+        [PSCustomObject][Ordered]@{
+            id=$_.DisplayName
+            method='GET'
+            Url="/groups/$($_.id)/members"
+        }
+    }
+    $RequestBody = $Request | ConvertTo-Json -Depth 3
+    $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+    $Response.responses | ? status -ne "200" | % {
+        Write-Error "Probleem met $($_.id): $($_.body.error.message)"
+    }
+    $GroupMembers += $Response.responses
+}
+
+$GroupsToRemove = @()
+$Groups | % {
+    if (($GroupMembers | ? id -eq $_.DisplayName).body.value.count) {
+        return
+    }
+    $GroupsToRemove += [PSCustomObject][Ordered]@{
+        Id=$_.DisplayName
+        Method='DELETE'
+        Url="/groups/$($_.ID)"
+    }
+}
+for($i=0;$i -lt $GroupsToRemove.count;$i+=20) {
+    Write-Progress -Activity "Lege CLW-klassen verwijderen..." -Status "$i/$($GroupsToRemove.Count) gedaan" -PercentComplete ($i / $GroupsToRemove.Count * 100)
+    $Request = @{}           
+    $Request['requests'] = ($GroupsToRemove[$i..($i+19)])
+    $RequestBody = $Request | ConvertTo-Json -Depth 4
+    $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+    $Response.responses | ? status -ne "204" | % {
+        Write-Error "Probleem met $($_.id): $($_.body.error.message)"
+    }
+}
 
 #####################################
 ### OPKUIS ONBESTAANDE KLASSEN AD ###
