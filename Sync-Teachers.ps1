@@ -98,7 +98,7 @@ for($i=0;$i -lt $OwnersToAdd.count;$i+=20) {
     $Request['requests'] = ($OwnersToAdd[$i..($i+19)])
     $RequestBody = $Request | ConvertTo-Json -Depth 4
     $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
-    $Response.responses | ? status -ne "204" {
+    $Response.responses | ? status -ne "204" | % {
         Write-Error "Probleem met $($_.id): $($_.body.error.message)"
     }
 }

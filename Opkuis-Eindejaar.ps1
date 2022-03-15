@@ -59,7 +59,7 @@ for($i=0;$i -lt $ChannelsToRemove.count;$i+=20){
     $Request['requests'] = ($ChannelsToRemove[$i..($i+19)])
     $RequestBody = $Request | ConvertTo-Json -Depth 3
     $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
-    $Response.responses | ? status -ne "204" {
+    $Response.responses | ? status -ne "204" | % {
         Write-Error "Probleem met $($_.id): $($_.body.error.message)"
     }
 }
@@ -82,7 +82,7 @@ for($i=0;$i -lt $TeamsToArchive.count;$i+=20){
     $Request['requests'] = ($TeamsToArchive[$i..($i+19)])
     $RequestBody = $Request | ConvertTo-Json -Depth 3
     $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
-    $Response.responses | ? status -ne "204" {
+    $Response.responses | ? status -ne "204" | % {
         Write-Error "Probleem met $($_.id): $($_.body.error.message)"
     }
 }
@@ -106,7 +106,7 @@ for($i=0;$i -lt $GroupsToPause.count;$i+=20){
     $Request['requests'] = ($GroupsToPause[$i..($i+19)])
     $RequestBody = $Request | ConvertTo-Json -Depth 3
     $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
-    $Response.responses | ? status -ne "204" {
+    $Response.responses | ? status -ne "204" | % {
         Write-Error "Probleem met $($_.id): $($_.body.error.message)"
     }
 }
@@ -119,7 +119,6 @@ while ($Response.'@odata.nextLink') {
     $Teams += $Response.value
 }
 
-# TEAMS ARCHIVEREN
 $TeamsToRemove = $Groups | % {
     [PSCustomObject][Ordered]@{
         Id=$_.DisplayName
@@ -133,7 +132,7 @@ for($i=0;$i -lt $TeamsToRemove.count;$i+=20){
     $Request['requests'] = ($TeamsToRemove[$i..($i+19)])
     $RequestBody = $Request | ConvertTo-Json -Depth 3
     $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
-    $Response.responses | ? status -ne "204" {
+    $Response.responses | ? status -ne "204" | % {
         Write-Error "Probleem met $($_.id): $($_.body.error.message)"
     }
 }
