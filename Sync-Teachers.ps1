@@ -37,6 +37,11 @@ Connect-Graph -Scopes @("Group.ReadWrite.All")
 # NODIGE GROEPEN EN USERS OPHALEN UIT AZUREAD
 $AzureGroups = Get-MgGroup -Filter "startswith(displayName,'$YearCode')" -All | ? DisplayName -in $InputClasses
 $AzureUsers = Get-MgUser -All | ? UserPrincipalName -in $InputUsers
+$AzureUPNs = $AzureUsers | select -ExpandProperty UserPrincipalName
+$InputUsers | ? { $_ -notin $AzureUPNs} | %{
+    Write-Error "Gebruiker niet gevonden: $_"
+}
+$InputData = $InputData | ? { $_.$TeacherColumn -in $AzureUPNs }
 
 # ALLE GROEPEIGENAARS OPHALEN
 $AzureOwners = @()
@@ -53,7 +58,7 @@ for($i=0;$i -lt $AzureGroups.count;$i+=20){
     $RequestBody = $Request | ConvertTo-Json -Depth 3
     $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
     $Response.responses | ? status -ne "200" | % {
-        Write-Error "Probleem met $($_.id): $($_.error.message)"
+        Write-Error "Probleem met $($_.id): $($_.body.error.message)"
     }
     $AzureOwners += $Response.responses
 }
@@ -70,10 +75,6 @@ $InputClasses | % {
     $InputGroupOwners = $InputData | ? { $_.$ClassColumn -eq $ClassCode } | select -ExpandProperty $TeacherColumn
     $InputGroupOwners | % {
         $AzureUserToAdd = $AzureUsers | ? UserPrincipalName -EQ $_
-        if (-not ($AzureUserToAdd)) {
-            Write-Error "Gebruiker niet gevonden: $_"
-            return
-        }
         if (-not ($CurrentGroupOwners | ? UserPrincipalName -EQ $_)) {
             $Headers = [PSCustomObject][Ordered]@{"Content-Type"="application/json"}
             $Body = [PSCustomObject][Ordered]@{ 
@@ -91,14 +92,14 @@ $InputClasses | % {
     }
 }
 
-for($i=0;$i -lt $OwnersToAdd.count;$i+=20){                                                                                                                                              
+for($i=0;$i -lt $OwnersToAdd.count;$i+=20) {
     Write-Progress -Activity "Leerkrachten toevoegen..." -Status "$i/$($OwnersToAdd.Count) gedaan" -PercentComplete ($i / $OwnersToAdd.Count * 100)
     $Request = @{}           
     $Request['requests'] = ($OwnersToAdd[$i..($i+19)])
     $RequestBody = $Request | ConvertTo-Json -Depth 4
     $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
     $Response.responses | ? status -ne "204" {
-        Write-Error "Probleem met $($_.id): $($_.error.message)"
+        Write-Error "Probleem met $($_.id): $($_.body.error.message)"
     }
 }
 

@@ -5,50 +5,135 @@ $CurrentYear = (Get-Date).Year % 100
 $YearCode = "$($CurrentYear - 1)$($CurrentYear)_"
 $OldYearCode = "$($CurrentYear - 4)$($CurrentYear - 3)_"
 
-Write-Host "Archiveren van jaar $YearCode..."
-Write-Host "Verwijderen van jaar $OldYearCode..."
+$yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes", "Opkuisen die handen!."
+$no = New-Object System.Management.Automation.Host.ChoiceDescription "&No"
+$options = [System.Management.Automation.Host.ChoiceDescription[]]($yes, $no)
+$choiceRTN = $host.UI.PromptForChoice("OPKUIS EINDEJAAR", "Archiveren van jaar $YearCode en verwijderen van jaar $OldYearCode", $options, 1)
+if ( $choiceRTN -eq 1 ) {
+    return
+}
 
 # Klassen zoeken
-$Classes = for($i = 1;$i -lt 8; $i++) { 
-    Get-AzureADMsGroup -Filter "startswith(displayname,'$YearCode$i')" -All $true
+Connect-Graph -Scopes @("Group.ReadWrite.All","TeamSettings.ReadWrite.All")
+$Response = Invoke-GraphRequest -Uri "https://graph.microsoft.com/beta/teams?`$filter=startswith(displayName,'$($YearCode)')"
+$Teams = $Response.value
+while ($Response.'@odata.nextLink') {
+    $Response = Invoke-GraphRequest -Uri $Response.'@odata.nextLink'
+    $Teams += $Response.value
 }
 
-# Klassen leegmaken
-# TODO: batching
-$Classes | % {
-    $Class = $_
-    Write-Host "Leegmaken klas $($Class.DisplayName)"
-
-    $Team = Get-Team -DisplayName $Class.DisplayName 
-    $GroupId = $Team.GroupId
-    Get-TeamChannel -GroupId $GroupId | ? MembershipType -EQ Private | % {
-        Remove-TeamChannel -GroupId $GroupId -DisplayName $_.DIsplayName
+# LIST CHANNELS
+$TeamChannels = @()
+for($i=0;$i -lt $Teams.count;$i+=20){                                                                                                                                              
+    Write-Progress -Activity "Privékanalen zoeken..." -Status "$i/$($Teams.Count) gedaan" -PercentComplete ($i / $Teams.Count * 100)
+    $Request = @{}
+    $Request.requests = $Teams[$i..($i+19)] | % {
+        [PSCustomObject][Ordered]@{
+            id=$_.ID
+            method='GET'
+            Url="/teams/$($_.id)/channels`$filter=membershipType eq 'private'"
+        }
     }
-    Set-AzureAdMsGroup -ID $_.Id -MembershipRuleProcessingState "Paused"
-    Write-Host "    Team archiveren"
-    Set-TeamArchivedState -GroupId $GroupId -Archived $true -SetSpoSiteReadOnlyForMembers $true
+    $RequestBody = $Request | ConvertTo-Json -Depth 3
+    $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+    $Response.responses | ? status -NotIn @("200","404") | % {
+        Write-Error "Probleem met $($_.id): $($_.body.error.message)"
+        return
+    }
+    $TeamChannels += $Response.responses | ? status -eq "200"
 }
 
-
-# Klassenraden leegmaken
-# TODO: batching
-Get-AzureADGroup -Filter "startswith(displayname,'$($YearCode)KR')" -All $true | % {
-    $Klassenraad = $_
-    Write-Host "Leegmaken klassenraad $($Klassenraad.DisplayName)"
-
-    $Team = Get-Team -DisplayName $Klassenraad.DisplayName
-    $GroupId = $Team.GroupId
-    Get-TeamChannel -GroupId $GroupId | ? MembershipType -EQ Private | % {
-        Remove-TeamChannel -GroupId $GroupId -DisplayName $_.DIsplayName
+$ChannelsToRemove = $TeamChannels | % {
+    $TeamID = $_.id     
+    $_.body.value | % {                                                                                                                 
+        [PSCustomObject][Ordered]@{
+            Id=$_.ID
+            Method='DELETE'
+            Url="/teams/$TeamID/channels/$($_.id)"
+        }
     }
-    
-    
-    Write-Host "    Team archiveren"
-    Set-TeamArchivedState -GroupId $GroupId  -Archived $true -SetSpoSiteReadOnlyForMembers $true
+}
+for($i=0;$i -lt $ChannelsToRemove.count;$i+=20){                                                                                                                                              
+    Write-Progress -Activity "Privékanalen verwijderen..." -Status "$i/$($ChannelsToRemove.Count) gedaan" -PercentComplete ($i / $ChannelsToRemove.Count * 100)
+    $Request = @{}                
+    $Request['requests'] = ($ChannelsToRemove[$i..($i+19)])
+    $RequestBody = $Request | ConvertTo-Json -Depth 3
+    $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+    $Response.responses | ? status -ne "204" {
+        Write-Error "Probleem met $($_.id): $($_.body.error.message)"
+    }
+}
+
+# TEAMS ARCHIVEREN
+$TeamsToArchive = $Teams | % {
+    $Headers = [PSCustomObject][Ordered]@{"Content-Type"="application/json"}
+    $Body = [PSCustomObject][Ordered]@{"shouldSetSpoSiteReadOnlyForMembers"=$true}
+    [PSCustomObject][Ordered]@{
+        Id=$_.DisplayName
+        Method='POST'
+        Url="/teams/$($_.ID)/archive"
+        Headers=$Headers
+        Body=$Body
+    }
+}
+for($i=0;$i -lt $TeamsToArchive.count;$i+=20){                                                                                                                                              
+    Write-Progress -Activity "Teams archiveren..." -Status "$i/$($TeamsToArchive.Count) gedaan" -PercentComplete ($i / $TeamsToArchive.Count * 100)
+    $Request = @{}                
+    $Request['requests'] = ($TeamsToArchive[$i..($i+19)])
+    $RequestBody = $Request | ConvertTo-Json -Depth 3
+    $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+    $Response.responses | ? status -ne "204" {
+        Write-Error "Probleem met $($_.id): $($_.body.error.message)"
+    }
+}
+
+$Groups = Get-MgGroup -Filter "startswith(displayname,'$($Yearcode)') and groupTypes/any(c:c eq 'DynamicMembership')"
+# TEAMS ARCHIVEREN
+$GroupsToPause = $Groups | % {
+    $Headers = [PSCustomObject][Ordered]@{"Content-Type"="application/json"}
+    $Body = [PSCustomObject][Ordered]@{"MembershipRuleProcessingState"="Paused"}
+    [PSCustomObject][Ordered]@{
+        Id=$_.DisplayName
+        Method='PATCH'
+        Url="/groups/$($_.ID)"
+        Headers=$Headers
+        Body=$Body
+    }
+}
+for($i=0;$i -lt $GroupsToPause.count;$i+=20){                                                                                                                                              
+    Write-Progress -Activity "Lidmaatschap bevriezen..." -Status "$i/$($GroupsToPause.Count) gedaan" -PercentComplete ($i / $GroupsToPause.Count * 100)
+    $Request = @{}                
+    $Request['requests'] = ($GroupsToPause[$i..($i+19)])
+    $RequestBody = $Request | ConvertTo-Json -Depth 3
+    $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+    $Response.responses | ? status -ne "204" {
+        Write-Error "Probleem met $($_.id): $($_.body.error.message)"
+    }
 }
 
 # Oude teams schrappen
-Get-AzureADGroup -Filter "startswith(displayname,'$($OldYearCode)')" | % {
-    Write-Host "Schrappen $($_.DisplayName)"
-    Get-Team -DisplayName $_.DisplayName | Remove-Team
+$Response = Invoke-GraphRequest -Uri "https://graph.microsoft.com/beta/teams?`$filter=startswith(displayName,'$($OldYearCode)')"
+$Teams = $Response.value
+while ($Response.'@odata.nextLink') {
+    $Response = Invoke-GraphRequest -Uri $Response.'@odata.nextLink'
+    $Teams += $Response.value
+}
+
+# TEAMS ARCHIVEREN
+$TeamsToRemove = $Groups | % {
+    [PSCustomObject][Ordered]@{
+        Id=$_.DisplayName
+        Method='DELETE'
+        Url="/groups/$($_.ID)"
+    }
+}
+for($i=0;$i -lt $TeamsToRemove.count;$i+=20){                                                                                                                                              
+    Write-Progress -Activity "Oude groepen verwijderen..." -Status "$i/$($TeamsToRemove.Count) ge#>#daan" -PercentComplete ($i / $TeamsToRemove.Count * 100)
+    $Request = @{}                
+    $Request['requests'] = ($TeamsToRemove[$i..($i+19)])
+    $RequestBody = $Request | ConvertTo-Json -Depth 3
+    $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+    $Response.responses | ? status -ne "204" {
+        Write-Error "Probleem met $($_.id): $($_.body.error.message)"
+    }
 }

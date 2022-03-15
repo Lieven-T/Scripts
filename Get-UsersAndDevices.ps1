@@ -15,7 +15,7 @@ $Output = for($i=0;$i -lt $Users.count;$i+=20){
     $RequestBody = $Request | ConvertTo-Json -Depth 3
     $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
     $Response.responses | ? status -ne "200" {
-        Write-Error "Probleem met $($_.id): $($_.error.message)"
+        Write-Error "Probleem met $($_.id): $($_.body.error.message)"
     }
     $Users[$i..($i+19)] | % {
         $Device = ($Response.responses | ? id -eq $_.Id).body.value

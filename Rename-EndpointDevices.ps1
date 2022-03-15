@@ -15,7 +15,6 @@ $FileList = if ($input) {
 
 Write-Host "`n==========`nFETCH DATA`n==========`n"
 Connect-Graph -Scopes @("DeviceManagementManagedDevices.ReadWrite.All","DeviceManagementServiceConfig.ReadWrite.All","DeviceManagementManagedDevices.PrivilegedOperations.All")
-Select-MgProfile -Name "beta"
 $Response = Invoke-GraphRequest -Uri "https://graph.microsoft.com/Beta/deviceManagement/managedDevices"
 $EndpointDevices = $Response.value
 while ($Response.'@odata.nextLink') {
@@ -77,7 +76,7 @@ foreach ($i in $FileList) {
         $RequestBody = $Request | ConvertTo-Json -Depth 3
         $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
         $Response.responses | ? status -ne "204" {
-            Write-Error "Probleem met $($_.id): $($_.error.message)"
+            Write-Error "Probleem met $($_.id): $($_.body.error.message)"
         }
     
     }
@@ -120,7 +119,7 @@ foreach ($i in $FileList) {
         $RequestBody = $Request | ConvertTo-Json -Depth 3
         $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
         $Response.responses | ? status -ne "204" {
-            Write-Error "Probleem met $($_.id): $($_.error.message)"
+            Write-Error "Probleem met $($_.id): $($_.body.error.message)"
         }
     
     }
