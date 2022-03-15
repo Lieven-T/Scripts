@@ -43,9 +43,10 @@ for($i=0;$i -lt $Teams.count;$i+=20){
     $TeamChannels += $Response.responses | ? status -eq "200"
 }
 
-$ChannelsToRemove = $TeamChannels | % {
+$ChannelsToRemove = @()
+$TeamChannels | % {
     $TeamID = $_.id     
-    $_.body.value | % {                                                                                                                 
+    $ChannelsToRemove += $_.body.value | % {                                                                                                                 
         [PSCustomObject][Ordered]@{
             Id=$_.ID
             Method='DELETE'
@@ -65,10 +66,11 @@ for($i=0;$i -lt $ChannelsToRemove.count;$i+=20){
 }
 
 # TEAMS ARCHIVEREN
-$TeamsToArchive = $Teams | % {
+$TeamsToArchive = @()
+$Teams | % {
     $Headers = [PSCustomObject][Ordered]@{"Content-Type"="application/json"}
     $Body = [PSCustomObject][Ordered]@{"shouldSetSpoSiteReadOnlyForMembers"=$true}
-    [PSCustomObject][Ordered]@{
+    $TeamsToArchive += [PSCustomObject][Ordered]@{
         Id=$_.DisplayName
         Method='POST'
         Url="/teams/$($_.ID)/archive"
@@ -89,10 +91,11 @@ for($i=0;$i -lt $TeamsToArchive.count;$i+=20){
 
 $Groups = Get-MgGroup -Filter "startswith(displayname,'$($Yearcode)') and groupTypes/any(c:c eq 'DynamicMembership')"
 # TEAMS ARCHIVEREN
-$GroupsToPause = $Groups | % {
+$GroupsToPause = @()
+$Groups | % {
     $Headers = [PSCustomObject][Ordered]@{"Content-Type"="application/json"}
     $Body = [PSCustomObject][Ordered]@{"MembershipRuleProcessingState"="Paused"}
-    [PSCustomObject][Ordered]@{
+    $GroupsToPause += [PSCustomObject][Ordered]@{
         Id=$_.DisplayName
         Method='PATCH'
         Url="/groups/$($_.ID)"
@@ -119,8 +122,9 @@ while ($Response.'@odata.nextLink') {
     $Teams += $Response.value
 }
 
-$TeamsToRemove = $Groups | % {
-    [PSCustomObject][Ordered]@{
+$TeamsToRemove = @()
+$Groups | % {
+    $TeamsToRemove += [PSCustomObject][Ordered]@{
         Id=$_.DisplayName
         Method='DELETE'
         Url="/groups/$($_.ID)"

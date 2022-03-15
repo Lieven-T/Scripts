@@ -11,7 +11,8 @@ $SmsClassList = @()
 $SmsClassList = Get-ChildItem $XmlFileLocation | % { ([xml](Get-Content -Path $_.FullName)).Objs.ChildNodes } | % { $_.'#text'}
 
 $Groups = Get-MgGroup -Filter "startswith(displayName,'romerocollege')" -All
-$Groups = $Groups | ? { $_.DisplayName -Match "romerocollege.*_[1-7]" -and ($_.displayName -split "_")[1] -notin $SmsClassList }
+$Groups = $Groups | ? { $_.DisplayName -Match "romerocollege.*_[1-7]" -and ($_.displayName -split "_")[-1] -notin $SmsClassList }
+$Teams = Get-MgGroup -Filter "startswith(displayName,'$YearCode')" -All
 
 # ALLE GROEPLEDEN OPHALEN
 $GroupMembers = @()
@@ -49,7 +50,7 @@ $Groups | % {
 for($i=0;$i -lt $GroupsToRemove.count;$i+=20) {
     Write-Progress -Activity "Ongeldige klassen verwijderen..." -Status "$i/$($GroupsToRemove.Count) gedaan" -PercentComplete ($i / $GroupsToRemove.Count * 100)
     $Request = @{}           
-    $Request['requests'] = ($GroupsToRemove[$i..($i+19)])
+    $Request['requests'] = $GroupsToRemove[$i..($i+19)]
     $RequestBody = $Request | ConvertTo-Json -Depth 4
     $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
     $Response.responses | ? status -ne "204" | % {
@@ -57,7 +58,28 @@ for($i=0;$i -lt $GroupsToRemove.count;$i+=20) {
     }
 }
 
-# TODO: ongeldige teams
+$TeamNames = $GroupsToRemove | % {
+    "$YearCode$(($_.Id -split '_')[-1])"
+}
+$Teams = $Teams | ? DisplayName -in $TeamNames
+$TeamsToRemove = @()
+$Teams | % {
+    $TeamsToRemove += [PSCustomObject][Ordered]@{
+        Id=$_.DisplayName
+        Method='DELETE'
+        Url="/groups/$($_.ID)"
+    }
+}
+for($i=0;$i -lt $TeamsToRemove.count;$i+=20){                                                                                                                                              
+    Write-Progress -Activity "Ongeldige teams verwijderen..." -Status "$i/$($TeamsToRemove.Count) ge#>#daan" -PercentComplete ($i / $TeamsToRemove.Count * 100)
+    $Request = @{}                
+    $Request['requests'] = ($TeamsToRemove[$i..($i+19)])
+    $RequestBody = $Request | ConvertTo-Json -Depth 3
+    $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+    $Response.responses | ? status -ne "204" | % {
+        Write-Error "Probleem met $($_.id): $($_.body.error.message)"
+    }
+}
 
 ######################
 # DEELTIJDS OPKUISEN #
@@ -106,6 +128,8 @@ for($i=0;$i -lt $GroupsToRemove.count;$i+=20) {
     }
 }
 
+
+
 #####################################
 ### OPKUIS ONBESTAANDE KLASSEN AD ###
 #####################################
@@ -129,8 +153,8 @@ Get-ChildItem | ? Name -NE "inactief" | ? Name -NotIn $SmsClassList | % {
 ##########################
 
 $Groups = Get-MgGroup -Filter "startswith(displayName,'hetlaar') or startswith(displayName,'basisromero') or startswith(displayName,'romerocollege') or startswith(displayName,'trefpunt')" -all
-$Groups = $Groups | ? DisplayName -NotMatch "basisromero_\d[A-Z]|cvw_\d|romerocollege_\d|trefpunt_\w{2} \w{2}|_extra|_disabled|_leerlingen"
-# ALLE GROEPLEDEN OPHALEN
+#$Groups = $Groups | ? DisplayName -NotMatch "basisromero_\d[A-Z]|cvw_\d|romerocollege_\d|trefpunt_\w{2} \w{2}|_extra|_disabled|_leerlingen"
+# ALLE GROEPLEDEN OPHALEN: MOET ANDERS
 $GroupMembers = @()
 for($i=0;$i -lt $Groups.count;$i+=20){                                                                                                                                              
     Write-Progress -Activity "Groepsleden zoeken..." -Status "$i/$($Groups.Count) gedaan" -PercentComplete ($i / $Groups.Count * 100)
@@ -150,11 +174,49 @@ for($i=0;$i -lt $Groups.count;$i+=20){
     }
     $GroupMembers += $Response.responses
 }
-$AllTeachers = $GroupMembers | % { $_.body.value }
+$RegularUserIDs = ($GroupMembers | ? Id -notmatch "_extra").body.value | select -Unique Id
+
+$ExtraMembersToRemove = @()
+$ExtraGroupId = ($Groups | ? DisplayName -Match "trefpunt_extra").Id
+($GroupMembers | ? Id -match "trefpunt_extra").body.value | select -Unique Id | ? { $_ -in $RegularUserIDs } | % {
+    $ExtraMembersToRemove += [PSCustomObject][Ordered]@{
+        Id=$_.Id
+        Method='DELETE'
+        Url="/groups/$ExtraGroupId/members/$($_.Id)/`$ref"
+    }
+}
+$ExtraGroupId = ($Groups | ? DisplayName -Match "basisromero_extra").Id
+($GroupMembers | ? Id -match "basisromero_extra").body.value | select -Unique Id | ? { $_ -in $RegularUserIDs } | % {
+    $ExtraMembersToRemove += [PSCustomObject][Ordered]@{
+        Id=$_.Id
+        Method='DELETE'
+        Url="/groups/$ExtraGroupId/members/$($_.Id)/`$ref"
+    }
+}
+$ExtraGroupId = ($Groups | ? DisplayName -Match "romerocollege_extra").Id
+($GroupMembers | ? Id -match "romerocollege_extra").body.value | select -Unique Id | ? { $_ -in $RegularUserIDs } | % {
+    $ExtraMembersToRemove += [PSCustomObject][Ordered]@{
+        Id=$_.Id
+        Method='DELETE'
+        Url="/groups/$ExtraGroupId/members/$($_.Id)/`$ref"
+    }
+}
+for($i=0;$i -lt $ExtraMembersToRemove.count;$i+=20) {
+    Write-Progress -Activity "Onterecht in extra opkuisen..." -Status "$i/$($ExtraMembersToRemove.Count) gedaan" -PercentComplete ($i / $ExtraMembersToRemove.Count * 100)
+    $Request = @{}           
+    $Request['requests'] = ($ExtraMembersToRemove[$i..($i+19)])
+    $RequestBody = $Request | ConvertTo-Json -Depth 4
+    $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+    $Response.responses | ? status -ne "204" | % {
+        Write-Error "Probleem met $($_.id): $($_.body.error.message)"
+    }
+}
 
 #######################################
 ### OPKUIS ONBEHEERDE ACCOUNTS O365 ###
 #######################################
+
+$AllUsers = Get-MgUser -all
 
 $OudeLeraars = (Get-AzureADGroup -SearchString oudeleraars).ObjectId
 $OudeLln = (Get-AzureADGroup -SearchString oudelln).ObjectId
@@ -170,19 +232,3 @@ $users | Where-Object { $_.ObjectId -notin $allusers -and $_.Mail -match "@stude
     Write-Host $_.UserPrincipalName
     Add-AzureADGroupMember -ObjectId $OudeLln -RefObjectId $_.ObjectId
 }
-
-
-#Get-AzureADGroupMember -ObjectId $OudeLeraars | ? { ($_[0].Mail).Split("@")[0] -notin $geldig } | % {
-#    Write-Host $_.Mail
-    #Set-AzureADUser -ObjectId $_.ObjectId -AccountEnabled $false
-#}
-
-
-# $romero_extra = (Get-AzureADGroup -SearchString romerocollege_extra).ObjectId
-
-#Get-AzureADGroupMember -ObjectId $OudeLeraars | ? { ($_[0].Mail).Split("@")[0] -in $geldig } | % {
-#    Write-Host $_.Mail
-#    Add-AzureADGroupMember -ObjectId $romero_extra -RefObjectId $_.ObjectId
-#    Remove-AzureADGroupMember -ObjectId $OudeLeraars -MemberId $_.ObjectId
-#}
-

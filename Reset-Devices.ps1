@@ -10,8 +10,9 @@ $ExcelData = Import-Excel $InputFile
 $ExcelData = $ExcelData | ? { $_.'Toestel ID' -and $_.'Toestel ID' -is [String]}
 
 Write-Host "Resetten van $($ExcelData.Count) laptops..."
-$DevicesToReset = $ExcelData | % {                                                                                                                                              
-    [PSCustomObject][Ordered]@{
+$DevicesToReset = @()
+$ExcelData | % {                                                                                                                                              
+    $DevicesToReset += [PSCustomObject][Ordered]@{
         Id=$_.Toestel
         Method='POST'
         Url="/managedDevices/$($_.'Toestel ID')/wipe"
