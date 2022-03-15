@@ -7,7 +7,7 @@ $Output = for($i=0;$i -lt $Users.count;$i+=20){
     $Request = @{}             
     $Request['requests'] = $Users[$i..($i+19)] | % {
         [PSCustomObject][Ordered]@{
-            id=$_.id
+            id=$_.UserPrincipalName
             method='GET'
             Url="/users/$($_.id)/managedDevices"
         }

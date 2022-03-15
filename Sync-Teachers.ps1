@@ -22,41 +22,83 @@ if ($ColumnNames -notcontains $TeacherColumn)
     Exit
 }
 
-
-try {
-    Get-AzureADTenantDetail | Out-Null
-} catch {
-    Connect-AzureAD
-}
-
-# TODO: batching/herwerken
 [string]$YearCode = "2122_"
 
-$Users = $InputData | Select -Property $ClassColumn,$TeacherColumn,$RoleColumn -Unique
-$Users | % {
-    $_.$ClassColumn = $_.$ClassColumn -replace "\d{4}_",""
-    $_.$TeacherColumn = $(($_.$TeacherColumn -split "@")[0])
+$InputData = $InputData | Select -Property $ClassColumn,$TeacherColumn -Unique
+$InputData | % {
+    $_.$ClassColumn = $_.$ClassColumn -match $YearCode ? $_.$ClassColumn : "$YearCode$($_.$ClassColumn)"
+    $_.$TeacherColumn = $_.$TeacherColumn -match "@" ? $_.$TeacherColumn : "$($_.$TeacherColumn)@romerocollege.be"
 }
-$ClassCodes = $Users | Select -ExpandProperty $ClassColumn -Unique | % { "$YearCode$_" }
+$InputClasses = $InputData | Select -ExpandProperty $ClassColumn -Unique
+$InputUsers = $InputData | Select -ExpandProperty $TeacherColumn -Unique
 
-$Classes = for($i = 1;$i -lt 8; $i++) { 
-    Get-AzureADGroup -Filter "startswith(displayname,'$($YearCode)$i')" -All $true
+Connect-Graph -Scopes @("Group.ReadWrite.All")
+
+# NODIGE GROEPEN EN USERS OPHALEN UIT AZUREAD
+$AzureGroups = Get-MgGroup -Filter "startswith(displayName,'$YearCode')" -All | ? DisplayName -in $InputClasses
+$AzureUsers = Get-MgUser -All | ? UserPrincipalName -in $InputUsers
+
+# ALLE GROEPEIGENAARS OPHALEN
+$AzureOwners = @()
+for($i=0;$i -lt $AzureGroups.count;$i+=20){                                                                                                                                              
+    Write-Progress -Activity "Groepsleden zoeken..." -Status "$i/$($AzureGroups.Count) gedaan" -PercentComplete ($i / $AzureGroups.Count * 100)
+    $Request = @{}
+    $Request.requests = $AzureGroups[$i..($i+19)] | % {
+        [PSCustomObject][Ordered]@{
+            id=$_.DisplayName
+            method='GET'
+            Url="/groups/$($_.id)/owners"
+        }
+    }
+    $RequestBody = $Request | ConvertTo-Json -Depth 3
+    $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+    $Response.responses | ? status -ne "200" | % {
+        Write-Error "Probleem met $($_.id): $($_.error.message)"
+    }
+    $AzureOwners += $Response.responses
 }
 
-$Classes | ? { ($_.DisplayName -in $ClassCodes) } | % {
-    $Class = $_
-    $Users | ? { 
-        ($_.$ClassColumn -eq ($_.DisplayName -replace $YearCode,"")) -and ($_.$TeacherColumn -notin (Get-AzureADGroupOwner -ObjectId $Class.ObjectId | select -ExpandProperty UserPrincipalName | % { ($_ -split "@")[0] } ) )
-    } | % {
-        Write-Host "Toevoegen van $($_.$TeacherColumn) aan klas $($_.$ClassColumn)"
-        $User = Get-AzureADUser -Filter "UserPrincipalName eq '$($_.$TeacherColumn)@romerocollege.be'"
-        Add-AzureADGroupOwner -ObjectId $Class.ObjectId -RefObjectId $User.ObjectId
+$OwnersToAdd = @()
+$InputClasses | % {
+    $AzureGroup = $AzureGroups | ? DisplayName -eq $_
+    if (-not $AzureGroup) {
+        Write-Error "Klas niet gevonden: $_"
+        return
+    }
+    $CurrentGroupOwners = $AzureOwners | ? id -eq $_
+    $ClassCode = $_
+    $InputGroupOwners = $InputData | ? { $_.$ClassColumn -eq $ClassCode } | select -ExpandProperty $TeacherColumn
+    $InputGroupOwners | % {
+        $AzureUserToAdd = $AzureUsers | ? UserPrincipalName -EQ $_
+        if (-not ($AzureUserToAdd)) {
+            Write-Error "Gebruiker niet gevonden: $_"
+            return
+        }
+        if (-not ($CurrentGroupOwners | ? UserPrincipalName -EQ $_)) {
+            $Headers = [PSCustomObject][Ordered]@{"Content-Type"="application/json"}
+            $Body = [PSCustomObject][Ordered]@{ 
+                "@odata.id" = "https://graph.microsoft.com/v1.0/users/$($AzureUserToAdd.id)"
+            }
+            $OwnerToAdd = [PSCustomObject][Ordered]@{
+                id=$_
+                method='POST'
+                Url='/groups/' + $($AzureGroup.id)+ '/owners/$ref'
+                Headers=$Headers
+                Body=$Body
+            }
+            $OwnersToAdd += $OwnerToAdd
+        }
     }
 }
 
-# ADWeaver schrappen als eigenaar van klas
-$User = Get-AzureADUser -Filter "UserPrincipalName eq 'adweaver@romerocollege.be'"
-$Classes | ? { ($_.DisplayName -split "_")[1] -in $ClassCodes }| % {
-    Write-Host "ADWeaver schrappen uit klas $($_.DisplayName)"
-    Remove-AzureADGroupOwner -ObjectId $_.ObjectId -OwnerId $User.ObjectId
+for($i=0;$i -lt $OwnersToAdd.count;$i+=20){                                                                                                                                              
+    Write-Progress -Activity "Leerkrachten toevoegen..." -Status "$i/$($OwnersToAdd.Count) gedaan" -PercentComplete ($i / $OwnersToAdd.Count * 100)
+    $Request = @{}           
+    $Request['requests'] = ($OwnersToAdd[$i..($i+19)])
+    $RequestBody = $Request | ConvertTo-Json -Depth 4
+    $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+    $Response.responses | ? status -ne "204" {
+        Write-Error "Probleem met $($_.id): $($_.error.message)"
+    }
 }
+

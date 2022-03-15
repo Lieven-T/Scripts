@@ -12,9 +12,9 @@ $ExcelData = $ExcelData | ? { $_.'Toestel ID' -and $_.'Toestel ID' -is [String]}
 Write-Host "Resetten van $($ExcelData.Count) laptops..."
 $DevicesToReset = $ExcelData | % {                                                                                                                                              
     [PSCustomObject][Ordered]@{
-        Id=$_.'Toestel ID'
+        Id=$_.Toestel
         Method='POST'
-        'Url'="/managedDevices/$($_.'Toestel ID')/wipe"
+        Url="/managedDevices/$($_.'Toestel ID')/wipe"
     }
 }
 
