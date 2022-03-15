@@ -1,10 +1,10 @@
 ﻿$YearCode = "2122_"
+Connect-Graph -Scopes @("Group.ReadWrite.All")
 
 ################################
 ### OPKUIS LEGE KLASSEN O365 ###
 ################################
 
-# TODO: batching/herwerken
 Connect-Graph
 $XmlFileLocation = "\\orc-dc1\c$\Program Files\ADWeaver\klassen"
 $SmsClassList = @()
@@ -56,6 +56,8 @@ for($i=0;$i -lt $GroupsToRemove.count;$i+=20) {
         Write-Error "Probleem met $($_.id): $($_.body.error.message)"
     }
 }
+
+# TODO: ongeldige teams
 
 ######################
 # DEELTIJDS OPKUISEN #
@@ -126,44 +128,36 @@ Get-ChildItem | ? Name -NE "inactief" | ? Name -NotIn $SmsClassList | % {
 ### ONTERECHT IN EXTRA ###
 ##########################
 
-Write-Host "Trefpunt"
-$trefpuntLeraars = Get-AzureADGroup -SearchString trefpunt_ -All $true | ? DisplayName -NotMatch "_\w{2} \w{2}|_extra|_disabled|_leerlingen" | % { Get-AzureADGroupMember -ObjectId $_.objectid -All $true } | Select -ExpandProperty ObjectId -Unique
-Get-AzureADGroup -SearchString trefpunt_extra -All $true | % { Get-AzureADGroupMember -ObjectId $_.objectid -All $true } | ? { $_.UserPrincipalName -Match "@romero" -and $_.ObjectId -in $trefpuntLeraars }
-
-Write-Host "Romero"
-$romeroLeraars = Get-AzureADGroup -SearchString romerocollege_ -All $true | ? DisplayName -notmatch "cvw_\d|romerocollege_\d|_extra|_disabled|_leerlingen|_OKAN" | % { Get-AzureADGroupMember -ObjectId $_.objectid -All $true } | Select -ExpandProperty ObjectId -Unique
-Get-AzureADGroup -SearchString romerocollege_extra -All $true | % { Get-AzureADGroupMember -ObjectId $_.objectid -All $true } | ? { $_.UserPrincipalName -Match "@romero" -and $_.ObjectId -in $romeroLeraars }
-
-Write-Host "Basis"
-$basisLeraars = Get-AzureADGroup -SearchString basisromero_ -All $true | ? DisplayName -notmatch "_extra|_disabled|_leerlingen|_\d[A-Z]" | % { Get-AzureADGroupMember -ObjectId $_.objectid -All $true } | Select -ExpandProperty ObjectId -Unique
-Get-AzureADGroup -SearchString basisromero_extra -All $true | % { Get-AzureADGroupMember -ObjectId $_.objectid -All $true } | ? { $_.UserPrincipalName -Match "@romero" -and $_.ObjectId -in $basisLeraars }
-
+$Groups = Get-MgGroup -Filter "startswith(displayName,'hetlaar') or startswith(displayName,'basisromero') or startswith(displayName,'romerocollege') or startswith(displayName,'trefpunt')" -all
+$Groups = $Groups | ? DisplayName -NotMatch "basisromero_\d[A-Z]|cvw_\d|romerocollege_\d|trefpunt_\w{2} \w{2}|_extra|_disabled|_leerlingen"
+# ALLE GROEPLEDEN OPHALEN
+$GroupMembers = @()
+for($i=0;$i -lt $Groups.count;$i+=20){                                                                                                                                              
+    Write-Progress -Activity "Groepsleden zoeken..." -Status "$i/$($Groups.Count) gedaan" -PercentComplete ($i / $Groups.Count * 100)
+    $Request = @{}
+    $Request.requests = @()
+    $Groups[$i..($i+19)] | % {
+        $Request.requests += [PSCustomObject][Ordered]@{
+            id=$_.DisplayName
+            method='GET'
+            Url="/groups/$($_.id)/members"
+        }
+    }
+    $RequestBody = $Request | ConvertTo-Json -Depth 3
+    $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+    $Response.responses | ? status -ne "200" | % {
+        Write-Error "Probleem met $($_.id): $($_.body.error.message)"
+    }
+    $GroupMembers += $Response.responses
+}
+$AllTeachers = $GroupMembers | % { $_.body.value }
 
 #######################################
 ### OPKUIS ONBEHEERDE ACCOUNTS O365 ###
 #######################################
 
-Connect-AzureAD
-
 $OudeLeraars = (Get-AzureADGroup -SearchString oudeleraars).ObjectId
 $OudeLln = (Get-AzureADGroup -SearchString oudelln).ObjectId
-
-Write-Host "Het Laar"
-$hetlaarusers = Get-AzureADGroup -SearchString hetlaar -All $true | % { Get-AzureADGroupMember -ObjectId $_.objectid -All $true } | Select -ExpandProperty ObjectId -Unique;
-
-Write-Host "Trefpunt"
-$trefpuntusers = Get-AzureADGroup -SearchString trefpunt_ -All $true | % { Get-AzureADGroupMember -ObjectId $_.objectid -All $true } | Select -ExpandProperty ObjectId -Unique;
-
-Write-Host "Romero"
-$romerousers = Get-AzureADGroup -SearchString romerocollege_ -All $true | % { Get-AzureADGroupMember -ObjectId $_.objectid -All $true } | Select -ExpandProperty ObjectId -Unique;
-
-Write-Host "Basis"
-$basisusers = Get-AzureADGroup -SearchString basisromero_ -All $true | % { Get-AzureADGroupMember -ObjectId $_.objectid -All $true } | Select -ExpandProperty ObjectId -Unique;
-
-$allusers = ($hetlaar + $trefpuntusers + $romerousers + $basisusers) | Select -Unique
-
-Write-Host "Alles"
-$users = Get-AzureADUser -All $true
 
 # Opkuis leraars
 $users | ? { $_.ObjectId -notin $allusers -and $_.Mail -match "@romerocollege.be" } | % {
