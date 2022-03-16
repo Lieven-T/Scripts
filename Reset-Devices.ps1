@@ -6,17 +6,26 @@ Param
 )
 
 Connect-Graph -Scopes @("DeviceManagementManagedDevices.ReadWrite.All","DeviceManagementManagedDevices.PrivilegedOperations.All")
-$ExcelData = Import-Excel $InputFile
-$ExcelData = $ExcelData | ? { $_.'Toestel ID' -and $_.'Toestel ID' -is [String]}
+$ExcelData = Import-Excel $InputFile | ? { $_.'Toestel ID' -and $_.'Toestel ID' -is [String]} | Sort-Object -Property Klas
 
 Write-Host "Resetten van $($ExcelData.Count) laptops..."
 $DevicesToReset = @()
-$ExcelData | % {                                                                                                                                              
+$ExcelData | % {
+    Write-Host "$($_.'Toestel ID'): $($_.toestel) van $($_.Gebruiker) uit $($_.Klas)"                                                                                                                                          
     $DevicesToReset += [PSCustomObject][Ordered]@{
         Id=$_.Toestel
         Method='POST'
         Url="/managedDevices/$($_.'Toestel ID')/wipe"
     }
+}
+
+$yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes"
+$no = New-Object System.Management.Automation.Host.ChoiceDescription "&No"
+$options = [System.Management.Automation.Host.ChoiceDescription[]]($yes, $no)
+
+$choiceRTN = $host.UI.PromptForChoice("RESETTEN TOESTELLEN", "Resetten van $($DevicesToReset.Count)", $options, 1)
+if ( $choiceRTN -eq 1 ) {
+    return
 }
 
 for($i=0;$i -lt $DevicesToReset.count;$i+=20){                                                                                                                                              

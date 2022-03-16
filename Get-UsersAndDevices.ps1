@@ -18,7 +18,7 @@ $Output = for($i=0;$i -lt $Users.count;$i+=20){
         Write-Error "Probleem met $($_.id): $($_.body.error.message)"
     }
     $Users[$i..($i+19)] | % {
-        $Device = ($Response.responses | ? id -eq $_.Id).body.value
+        $Device = ($Response.responses | ? id -eq $_.UserPrincipalName).body.value
         [PSCustomObject][Ordered]@{
             Gebruiker=$_.UserPrincipalName
             Klas=($_.Department -replace 'romerocollege.*_','')
