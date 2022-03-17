@@ -91,6 +91,13 @@ for($i=0;$i -lt $TeamsToCreate.count;$i+=20) {
     }
 }
 
+if ($TeamsToCreate.Count) {
+    for($i=0;$i -lt 30;$i++){                                                                                                                                              
+        Write-Progress -Activity "Even de tijd geven..." -Status "$i gedaan" -PercentComplete ($i / 30)
+        Start-Sleep 1
+    }
+}
+
 
 $AzureGroups = Get-MgGroup -Filter "startswith(displayName,'$YearCode')" -All
 
