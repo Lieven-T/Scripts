@@ -25,12 +25,18 @@ $ClassGroups | ? { ($_.DisplayName -replace "romerocollege.*_") -notin $ClassCod
 
     $TeamName = "$YearCode$ClassName"
     Write-Host "Aanmaken van team $_"
-    # TODO: params
+    $FunSettings = [PSCustomObject][Ordered]@{
+        allowGiphy=$false
+        allowStickersAndMemes= $false
+        allowCustomMemes=$false
+    }
     $Headers = [PSCustomObject][Ordered]@{"Content-Type"="application/json"}
     $Body = [PSCustomObject][Ordered]@{
+        "template@odata.bind"="https://graph.microsoft.com/v1.0/teamsTemplates('educationClass')"
         displayName=$TeamName
         description=$TeamName
         mailNickName=$TeamName
+        funSettings=$FunSettings
     }
     $TeamsToCreate += [PSCustomObject][Ordered]@{
         Id=$_
@@ -40,22 +46,47 @@ $ClassGroups | ? { ($_.DisplayName -replace "romerocollege.*_") -notin $ClassCod
         Body=$Body
     }
 }
+
+$InitialResponses = @()
 for($i=0;$i -lt $TeamsToCreate.count;$i+=20) {
     Write-Progress -Activity "Teams aanmaken..." -Status "$i/$($TeamsToCreate.Count) gedaan" -PercentComplete ($i / $TeamsToCreate.Count * 100)
     $Request = @{}           
     $Request['requests'] = ($TeamsToCreate[$i..($i+19)])
     $RequestBody = $Request | ConvertTo-Json -Depth 4
     $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
-    $Response.responses | ? status -ne "204" | % {
+    $Response.responses | ? status -ne "202" | % {
         Write-Error "Probleem met $($_.id): $($_.body.error.message)"
     }
+    $InitialResponses += $Response.responses
 }
-if ($TeamsToCreate.Count) {
-    for($i=0;$i -lt 30;$i++){                                                                                                                                              
-        Write-Progress -Activity "Even de tijd geven..." -Status "$i gedaan" -PercentComplete ($i / 30)
-        Start-Sleep 1
+
+$Actions = @()
+$InitialResponses | % {
+    $Actions += @([PSCustomObject][Ordered]@{
+        Id=$_.id
+        Method='GET'
+        Url=$_.headers.Location
+    })
+}
+
+while($Actions.count) {
+    Write-Host "Wachten op $($Actions.count)..."
+    Start-Sleep 45
+    $Responses = @()
+    for($i=0;$i -lt $ResponsesToProcess.count;$i+=20) {
+        Write-Progress -Activity "Opvragen van $($ResponsesToProcess.Count) acties" -Status "$i/$($ResponsesToProcess.Count) gedaan" -PercentComplete ($i / $ResponsesToProcess.Count * 100)
+        $Request = @{}           
+        $Request['requests'] = ($ResponsesToProcess[$i..($i+19)])
+        $RequestBody = $Request | ConvertTo-Json -Depth 4
+        $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+        $Response.responses | ? status -ne "200" | % {
+            Write-Error "Probleem met $($_.id): $($_.body.error.message)"
+        }
+        $Responses += $Response.responses | ? { $_.status -eq "200" -and $Response.responses[0].body.status -ne "succeeded" }
     }
+    $Actions = $Actions | ? Id -in $Responses.Id
 }
+
 $StaticClassGroups = Get-MgGroup -Filter "startswith(displayname,'$($Yearcode)')" -all | ? { $_.DisplayName -match "romerocollege.*_[1-7]" -and 'DynamicMembership' -notin $_.GroupTypes }
 # TODO: classgroups dynamisch maken
 

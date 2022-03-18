@@ -63,6 +63,7 @@ $ClassCodes | ? { $_ -notin $Klassenraden.DisplayName } | % {
     Write-Host "Aanmaken van team $_"
     $Headers = [PSCustomObject][Ordered]@{"Content-Type"="application/json"}
     $Body = [PSCustomObject][Ordered]@{
+        "template@odata.bind"="https://graph.microsoft.com/v1.0/teamsTemplates('standard')"
         displayName=$_
         description=$_
         mailNickName=$_
@@ -80,24 +81,45 @@ if ( $choiceRTN -eq 1 ) {
     return
 }
 
+$InitialResponses = @()
 for($i=0;$i -lt $TeamsToCreate.count;$i+=20) {
-    Write-Progress -Activity "Teams aanmaken toevoegen..." -Status "$i/$($TeamsToCreate.Count) gedaan" -PercentComplete ($i / $TeamsToCreate.Count * 100)
+    Write-Progress -Activity "Teams aanmaken..." -Status "$i/$($TeamsToCreate.Count) gedaan" -PercentComplete ($i / $TeamsToCreate.Count * 100)
     $Request = @{}           
     $Request['requests'] = ($TeamsToCreate[$i..($i+19)])
     $RequestBody = $Request | ConvertTo-Json -Depth 4
     $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
-    $Response.responses | ? status -ne "204" | % {
+    $Response.responses | ? status -ne "202" | % {
         Write-Error "Probleem met $($_.id): $($_.body.error.message)"
     }
+    $InitialResponses += $Response.responses
 }
 
-if ($TeamsToCreate.Count) {
-    for($i=0;$i -lt 30;$i++){                                                                                                                                              
-        Write-Progress -Activity "Even de tijd geven..." -Status "$i gedaan" -PercentComplete ($i / 30)
-        Start-Sleep 1
+$Actions = @()
+$InitialResponses | % {
+    $Actions += @([PSCustomObject][Ordered]@{
+        Id=$_.id
+        Method='GET'
+        Url=$_.headers.Location
+    })
+}
+
+while($Actions.count) {
+    Write-Host "Wachten op $($Actions.count)..."
+    Start-Sleep 45
+    $Responses = @()
+    for($i=0;$i -lt $ResponsesToProcess.count;$i+=20) {
+        Write-Progress -Activity "Opvragen van $($ResponsesToProcess.Count) acties" -Status "$i/$($ResponsesToProcess.Count) gedaan" -PercentComplete ($i / $ResponsesToProcess.Count * 100)
+        $Request = @{}           
+        $Request['requests'] = ($ResponsesToProcess[$i..($i+19)])
+        $RequestBody = $Request | ConvertTo-Json -Depth 4
+        $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+        $Response.responses | ? status -ne "200" | % {
+            Write-Error "Probleem met $($_.id): $($_.body.error.message)"
+        }
+        $Responses += $Response.responses | ? { $_.status -eq "200" -and $Response.responses[0].body.status -ne "succeeded" }
     }
+    $Actions = $Actions | ? Id -in $Responses.Id
 }
-
 
 $AzureGroups = Get-MgGroup -Filter "startswith(displayName,'$YearCode')" -All
 
