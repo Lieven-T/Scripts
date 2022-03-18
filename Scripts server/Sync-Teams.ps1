@@ -5,6 +5,8 @@
 $FileLocation = "C:\Users\adweaver\Documents"
 $YearCode = "2122_"
 
+Connect-Graph -Scopes @("Group.ReadWrite.All")
+
 $Date = Get-Date
 $TranscriptLocation = "$FileLocation\Sync-Teams_" + $Date.ToString("yyyyMMdd_HHmm") + ".log"
 Start-Transcript $TranscriptLocation
@@ -20,11 +22,10 @@ $ClassCodeList = $ClassTeamGroups | select -ExpandProperty DisplayName | % { $_ 
 
 $TeamsToCreate = @()
 $ClassGroups | ? { ($_.DisplayName -replace "romerocollege.*_") -notin $ClassCodeList } | % {
-    $ClassName = $AzureADGroupName -replace 'romerocollege.*_',''
-    Write-Host "Aanmaken van klas: $ClassName"
+    $ClassName = $_.DisplayName -replace 'romerocollege.*_',''
 
     $TeamName = "$YearCode$ClassName"
-    Write-Host "Aanmaken van team $_"
+    Write-Host "Aanmaken van klas: $TeamName"
     $FunSettings = [PSCustomObject][Ordered]@{
         allowGiphy=$false
         allowStickersAndMemes= $false
@@ -39,7 +40,7 @@ $ClassGroups | ? { ($_.DisplayName -replace "romerocollege.*_") -notin $ClassCod
         funSettings=$FunSettings
     }
     $TeamsToCreate += [PSCustomObject][Ordered]@{
-        Id=$_
+        Id=$TeamName
         Method='POST'
         Url="/teams"
         Headers=$Headers
@@ -52,7 +53,7 @@ for($i=0;$i -lt $TeamsToCreate.count;$i+=20) {
     Write-Progress -Activity "Teams aanmaken..." -Status "$i/$($TeamsToCreate.Count) gedaan" -PercentComplete ($i / $TeamsToCreate.Count * 100)
     $Request = @{}           
     $Request['requests'] = ($TeamsToCreate[$i..($i+19)])
-    $RequestBody = $Request | ConvertTo-Json -Depth 4
+    $RequestBody = $Request | ConvertTo-Json -Depth 6
     $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
     $Response.responses | ? status -ne "202" | % {
         Write-Error "Probleem met $($_.id): $($_.body.error.message)"
@@ -70,8 +71,7 @@ $InitialResponses | % {
 }
 
 while($Actions.count) {
-    Write-Host "Wachten op $($Actions.count)..."
-    Start-Sleep 45
+    Write-Host "Wachten op $($Actions.count) actie..."
     $Responses = @()
     for($i=0;$i -lt $Actions.count;$i+=20) {
         Write-Progress -Activity "Opvragen van $($Actions.Count) acties" -Status "$i/$($Actions.Count) gedaan" -PercentComplete ($i / $Actions.Count * 100)
@@ -85,16 +85,18 @@ while($Actions.count) {
         $Responses += $Response.responses | ? { $_.status -eq "200" -and $Response.responses[0].body.status -ne "succeeded" }
     }
     $Actions = $Actions | ? Id -in $Responses.Id
+    if ($Actions.count) { Start-Sleep 45 }
 }
 
-$StaticClassGroups = Get-MgGroup -Filter "startswith(displayname,'$($Yearcode)')" -all | ? { $_.DisplayName -match "romerocollege.*_[1-7]" -and 'DynamicMembership' -notin $_.GroupTypes }
-$StaticClassGroups | % {
-    $OriginGroup = $ClassGroups | ? { $_.DisplayName -match "romerocollege.*_$(($_.DisplayName -split '_')[-1])" }
-    Write-Host "Instellen van $($_.DisplayName) naar lidmaatschap van $($OriginGroup.DisplayName)"
-    Update-MgGroup -GroupId "5242dd38-36dd-4fb7-bfaf-d8b3f0d7c5fc" -BodyParameter @{
+$StaticClassGroups = Get-MgGroup -Filter "startswith(displayname,'$($Yearcode)')" -all | ? { $_.DisplayName -match "$($YearCode)[1-7]" -and 'DynamicMembership' -notin $_.GroupTypes }
+$ClassGroups | % {
+    $StaticGroup = $StaticClassGroups | ? DisplayName -Match "$YearCode$(($_.DisplayName -split '_')[-1])"
+    if (-not $StaticGroup) { return }
+    Write-Host "Instellen van $($StaticGroup.DisplayName) naar lidmaatschap van $($_.DisplayName)"
+    Update-MgGroup -GroupId $StaticGroup.ID -BodyParameter @{
         GroupTypes=@("DynamicMembership","Unified")
         MembershipRuleProcessingState="On"
-        MembershipRule="(user.department -eq `"$($OriginGroup.DisplayName)`")"
+        MembershipRule="(user.department -eq `"$($_.DisplayName)`")"
     }
 }
 
