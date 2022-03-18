@@ -32,7 +32,7 @@ $ClassGroups | ? { ($_.DisplayName -replace "romerocollege.*_") -notin $ClassCod
     }
     $Headers = [PSCustomObject][Ordered]@{"Content-Type"="application/json"}
     $Body = [PSCustomObject][Ordered]@{
-        "template@odata.bind"="https://graph.microsoft.com/v1.0/teamsTemplates('educationClass')"
+        "template@odata.bind"="https://graph.microsoft.com/beta/teamsTemplates('educationClass')"
         displayName=$TeamName
         description=$TeamName
         mailNickName=$TeamName
@@ -73,10 +73,10 @@ while($Actions.count) {
     Write-Host "Wachten op $($Actions.count)..."
     Start-Sleep 45
     $Responses = @()
-    for($i=0;$i -lt $ResponsesToProcess.count;$i+=20) {
-        Write-Progress -Activity "Opvragen van $($ResponsesToProcess.Count) acties" -Status "$i/$($ResponsesToProcess.Count) gedaan" -PercentComplete ($i / $ResponsesToProcess.Count * 100)
+    for($i=0;$i -lt $Actions.count;$i+=20) {
+        Write-Progress -Activity "Opvragen van $($Actions.Count) acties" -Status "$i/$($Actions.Count) gedaan" -PercentComplete ($i / $Actions.Count * 100)
         $Request = @{}           
-        $Request['requests'] = ($ResponsesToProcess[$i..($i+19)])
+        $Request['requests'] = ($Actions[$i..($i+19)])
         $RequestBody = $Request | ConvertTo-Json -Depth 4
         $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
         $Response.responses | ? status -ne "200" | % {
@@ -88,7 +88,16 @@ while($Actions.count) {
 }
 
 $StaticClassGroups = Get-MgGroup -Filter "startswith(displayname,'$($Yearcode)')" -all | ? { $_.DisplayName -match "romerocollege.*_[1-7]" -and 'DynamicMembership' -notin $_.GroupTypes }
-# TODO: classgroups dynamisch maken
+$StaticClassGroups | % {
+    $OriginGroup = $ClassGroups | ? { $_.DisplayName -match "romerocollege.*_$(($_.DisplayName -split '_')[-1])" }
+    Write-Host "Instellen van $($_.DisplayName) naar lidmaatschap van $($OriginGroup.DisplayName)"
+    Update-MgGroup -GroupId "5242dd38-36dd-4fb7-bfaf-d8b3f0d7c5fc" -BodyParameter @{
+        GroupTypes=@("DynamicMembership","Unified")
+        MembershipRuleProcessingState="On"
+        MembershipRule="(user.department -eq `"$($OriginGroup.DisplayName)`")"
+    }
+}
+
 
 ###############
 ### SYNC SP ###

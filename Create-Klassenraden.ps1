@@ -107,10 +107,10 @@ while($Actions.count) {
     Write-Host "Wachten op $($Actions.count)..."
     Start-Sleep 45
     $Responses = @()
-    for($i=0;$i -lt $ResponsesToProcess.count;$i+=20) {
-        Write-Progress -Activity "Opvragen van $($ResponsesToProcess.Count) acties" -Status "$i/$($ResponsesToProcess.Count) gedaan" -PercentComplete ($i / $ResponsesToProcess.Count * 100)
+    for($i=0;$i -lt $Actions.count;$i+=20) {
+        Write-Progress -Activity "Opvragen van $($Actions.Count) acties" -Status "$i/$($Actions.Count) gedaan" -PercentComplete ($i / $Actions.Count * 100)
         $Request = @{}           
-        $Request['requests'] = ($ResponsesToProcess[$i..($i+19)])
+        $Request['requests'] = ($Actions[$i..($i+19)])
         $RequestBody = $Request | ConvertTo-Json -Depth 4
         $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
         $Response.responses | ? status -ne "200" | % {
