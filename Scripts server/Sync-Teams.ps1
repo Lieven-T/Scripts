@@ -9,68 +9,55 @@ $Date = Get-Date
 $TranscriptLocation = "$FileLocation\Sync-Teams_" + $Date.ToString("yyyyMMdd_HHmm") + ".log"
 Start-Transcript $TranscriptLocation
 
-$Password = Get-Content "$FileLocation\cred.txt" | convertto-securestring
-$Credentials = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList "adweaver@romerocollege.be",$Password
-Import-Module AzureADPreview
-Connect-AzureAD -ErrorAction Stop -Credential $Credentials
-Connect-MicrosoftTeams -Credential $Credentials
-Connect-ExchangeOnline -Credential $Credentials -ShowBanner:$false
 
-$ClassGroups = for($i = 1;$i -lt 8; $i++) { 
-    Get-AzureADMsGroup -Filter "startswith(displayname,'romerocollege_$i') or startswith(displayname,'romerocollege_cvw_$i')" -All $true
-}
-
-$ClassTeamGroups = for($i = 1;$i -lt 8; $i++) { 
-    Get-AzureADMsGroup -Filter "startswith(displayname,'$YearCode$i')" -All $true
-}
-
+$ClassGroups = Get-MgGroup -All -Filter "startswith(displayName,'romerocollege_')" | ? DisplayName -Match "romerocollege.*_[1-7]"
+$ClassTeamGroups = Get-MgGroup -All -Filter "startswith(displayName,'$YearCode')" | ? DisplayName -Match "$YearCode[1-7]"
 $ClassCodeList = $ClassTeamGroups | select -ExpandProperty DisplayName | % { $_ -replace $YearCode }
 
 ##################
 ### SYNC TEAMS ###
 ##################
 
+$TeamsToCreate = @()
 $ClassGroups | ? { ($_.DisplayName -replace "romerocollege.*_") -notin $ClassCodeList } | % {
-    $AzureADGroupName = $_.DisplayName
     $ClassName = $AzureADGroupName -replace 'romerocollege.*_',''
     Write-Host "Aanmaken van klas: $ClassName"
 
     $TeamName = "$YearCode$ClassName"
-    $ClassTeam = Get-Team -DisplayName $TeamName | ? DisplayName -eq $TeamName
-    if (-not $ClassTeam -and (Get-Team -MailNickName $TeamName)) { 
-        Write-Host "    Naam van klas is veranderd, wordt overgeslagen"
-    } else {
-        if (-not $ClassTeam) {
-            Write-Host "    Klasteam bestaat nog niet: aanmaken"
-            $ClassTeam = New-Team -DisplayName $TeamName -MailNickName "$YearCode$($ClassName -replace " ","_")" -Template EDU_Class -AllowGiphy $false -AllowStickersAndMemes $false -AllowCustomMemes $false
-            $ClassGroup = Get-AzureADMSGroup -SearchString $TeamName | ? DisplayName -eq $TeamName
-            Set-AzureAdMsGroup -ID $ClassGroup.Id -GroupTypes @("DynamicMembership", "Unified") -MembershipRuleProcessingState "On" -MembershipRule "(user.department -eq `"$($AzureADGroupName)`")"
-        } else {
-            Write-Host "    Team gevonden"
-            $ClassGroup = Get-AzureADMSGroup -SearchString $TeamName | ? DisplayName -eq $TeamName
-            Set-AzureAdMsGroup -ID $ClassGroup.Id -GroupTypes @("DynamicMembership", "Unified") -MembershipRuleProcessingState "On" -MembershipRule "(user.department -eq `"$($AzureADGroupName)`")"
-        }
-
-        # Distributielijst syncen
-        $DistGroupName = "leerlingen.$($ClassName.ToLower())"
-        $DistGroupDispName = "Leerlingen $ClassName"
-        $DistGroup = Get-DynamicDistributionGroup -Identity $DistGroupName -ErrorAction SilentlyContinue
-        if (-not $DistGroup) {
-            Write-Host "    Distributielijst bestaat nog niet: aanmaken"
-            $DistGroup = New-DynamicDistributionGroup -DisplayName $DistGroupDispName -Name $DistGroupName -ConditionalDepartment $AzureADGroupName -IncludedRecipients "MailboxUsers" 
-        } else {
-            Write-Host "    Distributielijst gevonden"
-        }
+    Write-Host "Aanmaken van team $_"
+    # TODO: params
+    $Headers = [PSCustomObject][Ordered]@{"Content-Type"="application/json"}
+    $Body = [PSCustomObject][Ordered]@{
+        displayName=$TeamName
+        description=$TeamName
+        mailNickName=$TeamName
+    }
+    $TeamsToCreate += [PSCustomObject][Ordered]@{
+        Id=$_
+        Method='POST'
+        Url="/teams"
+        Headers=$Headers
+        Body=$Body
     }
 }
-
-# Filter obsolete mailing lists
-$ClassNameList = $ClassGroups | select -ExpandProperty DisplayName | % { $_.ToLower() -replace 'romerocollege.*_','' } 
-Get-DynamicDistributionGroup | ? {$_.Name -match "^leerlingen\." -and ($_.Name -replace "^leerlingen\.") -notin $ClassNameList } | % {
-    Write-Host "Schrappen distributielijst $($_.Name)"
-    Remove-DynamicDistributionGroup -Identity $_.Id -Confirm:$false
+for($i=0;$i -lt $TeamsToCreate.count;$i+=20) {
+    Write-Progress -Activity "Teams aanmaken..." -Status "$i/$($TeamsToCreate.Count) gedaan" -PercentComplete ($i / $TeamsToCreate.Count * 100)
+    $Request = @{}           
+    $Request['requests'] = ($TeamsToCreate[$i..($i+19)])
+    $RequestBody = $Request | ConvertTo-Json -Depth 4
+    $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+    $Response.responses | ? status -ne "204" | % {
+        Write-Error "Probleem met $($_.id): $($_.body.error.message)"
+    }
 }
-
+if ($TeamsToCreate.Count) {
+    for($i=0;$i -lt 30;$i++){                                                                                                                                              
+        Write-Progress -Activity "Even de tijd geven..." -Status "$i gedaan" -PercentComplete ($i / 30)
+        Start-Sleep 1
+    }
+}
+$StaticClassGroups = Get-MgGroup -Filter "startswith(displayname,'$($Yearcode)')" -all | ? { $_.DisplayName -match "romerocollege.*_[1-7]" -and 'DynamicMembership' -notin $_.GroupTypes }
+# TODO: classgroups dynamisch maken
 
 ###############
 ### SYNC SP ###
