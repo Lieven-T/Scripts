@@ -1,5 +1,5 @@
-﻿Connect-AzureAD -ErrorAction Stop
-Connect-MicrosoftTeams
+﻿Write-Error "DEBUGGEN!"
+return
 
 $CurrentYear = (Get-Date).Year % 100
 $YearCode = "$($CurrentYear - 1)$($CurrentYear)_"

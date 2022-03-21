@@ -1,4 +1,7 @@
-﻿$YearCode = "2122_"
+﻿Write-Error "DEBUGGEN!"
+return
+
+$YearCode = "2122_"
 Connect-Graph -Scopes @("Group.ReadWrite.All")
 $yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes"
 $no = New-Object System.Management.Automation.Host.ChoiceDescription "&No"

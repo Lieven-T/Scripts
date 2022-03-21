@@ -9,6 +9,9 @@
 [string]$TeacherColumn = 'Leraar'
 [string]$RoleColumn = 'Rol'
 
+Write-Error "DEBUGGEN!"
+return
+
 $yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes"
 $no = New-Object System.Management.Automation.Host.ChoiceDescription "&No"
 $options = [System.Management.Automation.Host.ChoiceDescription[]]($yes, $no)

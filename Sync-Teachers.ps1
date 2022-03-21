@@ -8,6 +8,9 @@
 [string]$ClassColumn = 'Klas'
 [string]$TeacherColumn = 'Leraar'
 
+Write-Error "DEBUGGEN!"
+return
+
 $InputData = Import-Excel -Path $InputFile
 
 $ColumnNames = $InputData | Get-Member -MemberType 'NoteProperty' | Select-Object -ExpandProperty 'Name'
