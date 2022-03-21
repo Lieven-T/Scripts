@@ -15,7 +15,7 @@ $ExcelData | % {
     $DevicesToReset += [PSCustomObject][Ordered]@{
         Id=$_.Toestel
         Method='POST'
-        Url="/managedDevices/$($_.'Toestel ID')/wipe"
+        Url="/deviceManagement/managedDevices/$($_.'Toestel ID')/wipe"
     }
 }
 
