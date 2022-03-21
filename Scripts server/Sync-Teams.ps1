@@ -5,7 +5,10 @@
 $FileLocation = "C:\Users\adweaver\Documents"
 $YearCode = "2122_"
 
-Connect-Graph -Scopes @("Group.ReadWrite.All")
+$ClientID="b655fe66-1bc3-4165-bf76-c3fcc03b5dee"
+$TenantID="82812c36-6990-4cdc-a7f0-c481f0f68262"
+$Certificate = (Get-childItem Cert:\CurrentUser\My) | ? FriendlyName -eq "AzurePS"
+Connect-Graph -TenantId $TenantID -AppId $ClientID -CertificateThumbprint $Certificate.Thumbprint
 
 $Date = Get-Date
 $TranscriptLocation = "$FileLocation\Sync-Teams_" + $Date.ToString("yyyyMMdd_HHmm") + ".log"
@@ -113,16 +116,11 @@ Import-Excel "$FileLocation\teams.xlsx" | Select -ExpandProperty Klas -Unique | 
     $ClassTeam = "$YearCode$_"
     Write-Host "Verwerken klas $Class"
     $Team = $null
-    $Team = Get-Team -DisplayName $ClassTeam -ErrorAction Stop
-    $SiteUrl = (Get-UnifiedGroup -Identity $Team.GroupId).SharepointSiteUrl
-    $SharedDocs = (Get-UnifiedGroup -Identity $Team.GroupId).SharePointDocumentsUrl
-    try {
-        Connect-PnPOnline -Url $SiteUrl -Credentials $Credentials -ErrorAction Stop
-    } catch {
-        Write-Host "    Toegang geweigerd, eigenaar toevoegen"
-        Set-PnPTenantSite -Url $SiteUrl  -Owners "adweaver@romerocollege.be"
-        Connect-PnPOnline -Url $SiteUrl -Credentials $Credentials -ErrorAction Stop
-    }
+    $Group = Get-MgGroup -Filter "displayName eq '$ClassTeam'" -ErrorAction Stop
+    $Site = Invoke-GraphRequest -Uri "https://graph.microsoft.com/beta/groups/$($Group.Id)/sites/root"
+    $SiteUrl = $Site.webUrl
+    # $SharedDocs = (Get-UnifiedGroup -Identity $Team.GroupId).SharePointDocumentsUrl
+    Connect-PnPOnline -Url $SiteUrl -Thumbprint $Certificate.Thumbprint -ClientId $ClientID -Tenant $TenantID -ErrorAction Stop
     $Roles = Get-PnPRoleDefinition
     $EditRole = ($roles | ? RoleTypeKind -eq "Contributor").Name
     $ReadRole = ($roles | ? RoleTypeKind -eq "Reader").Name
