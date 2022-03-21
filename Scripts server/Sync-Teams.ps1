@@ -115,27 +115,26 @@ Import-Excel "$FileLocation\teams.xlsx" | Select -ExpandProperty Klas -Unique | 
     $Class = $_
     $ClassTeam = "$YearCode$_"
     Write-Host "Verwerken klas $Class"
-    $Team = $null
     $Group = Get-MgGroup -Filter "displayName eq '$ClassTeam'" -ErrorAction Stop
     $Site = Invoke-GraphRequest -Uri "https://graph.microsoft.com/beta/groups/$($Group.Id)/sites/root"
     $SiteUrl = $Site.webUrl
-    # $SharedDocs = (Get-UnifiedGroup -Identity $Team.GroupId).SharePointDocumentsUrl
     Connect-PnPOnline -Url $SiteUrl -Thumbprint $Certificate.Thumbprint -ClientId $ClientID -Tenant $TenantID -ErrorAction Stop
     $Roles = Get-PnPRoleDefinition
     $EditRole = ($roles | ? RoleTypeKind -eq "Contributor").Name
     $ReadRole = ($roles | ? RoleTypeKind -eq "Reader").Name
     $Members  = Get-PnPGroup -AssociatedMemberGroup
-    $Users = Get-AzureADGroup -SearchString $ClassTeam | Get-AzureADGroupMember | ? UserPrincipalName -Match "@student"
+    $Users = Get-MgGroupMember -GroupId $Group.Id -Property @('displayName','id','userPrincipalName')
 
-    $Channel = Get-TeamChannel -GroupId $Team.GroupId | ? DisplayName -EQ $StudentDocs
+    $Channel = Invoke-GraphRequest -Uri "https://graph.microsoft.com/beta/teams/$($Group.Id)/channels"
+    $Channel = Get-MgTeamChannel -TeamId $Group.Id -Filter "displayName eq '$StudentDocs'"
     if (-not $Channel) {
         Write-Host "    Kanaal aanmaken..."
-        $Channel = New-TeamChannel -GroupId $Team.GroupId -DisplayName $StudentDocs -ErrorAction Stop
+        $Channel = New-MgTeamChannel -TeamId $Group.Id -DisplayName $StudentDocs -ErrorAction Stop
         Set-PnPFolderPermission -List $SharedDocs -Identity "$SharedDocs/$StudentDocs" -Group $Members -AddRole $ReadRole -ClearExisting
     }
     $SubFolders = Get-PnPFolderItem -FolderSiteRelativeUrl "$SharedDocsName/$StudentDocs"
     $SubFolderNames = $Subfolders | select -ExpandProperty Name
-    $UserNames = $Users | select -ExpandProperty UserPrincipalName | % { ($_ -split "@")[0] }
+    $UserNames = $Users | %{ $_.AdditionalProperties.userPrincipalName }| % { ($_ -split "@")[0] }
     $Users | ? { ($_.UserPrincipalName -split "@")[0] -notin ($SubFolderNames) } | % {
         $UserName = ($_.UserPrincipalName -split "@")[0]
         Write-Host "    Aanmaken map $UserName"
