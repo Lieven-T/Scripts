@@ -135,7 +135,7 @@ Import-Excel "$FileLocation\teams.xlsx" | Select -ExpandProperty Klas -Unique | 
     $SubFolders = Get-PnPFolderItem -FolderSiteRelativeUrl "$SharedDocsName/$StudentDocs"
     $SubFolderNames = $Subfolders | select -ExpandProperty Name
     $UserNames = $Users | %{ $_.AdditionalProperties.userPrincipalName }| % { ($_ -split "@")[0] }
-    $Users | ? { ($_.UserPrincipalName -split "@")[0] -notin ($SubFolderNames) } | % {
+    $Users | ? { ($_.AdditionalProperties.userPrincipalName -split "@")[0] -notin ($SubFolderNames) } | % {
         $UserName = ($_.UserPrincipalName -split "@")[0]
         Write-Host "    Aanmaken map $UserName"
         Add-PnPFolder -Name $UserName -Folder $SharedDocsName/$StudentDocs
