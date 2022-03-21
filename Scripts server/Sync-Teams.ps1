@@ -136,7 +136,7 @@ Import-Excel "$FileLocation\teams.xlsx" | Select -ExpandProperty Klas -Unique | 
     $SubFolderNames = $Subfolders | select -ExpandProperty Name
     $UserNames = $Users | %{ $_.AdditionalProperties.userPrincipalName }| % { ($_ -split "@")[0] }
     $Users | ? { ($_.AdditionalProperties.userPrincipalName -split "@")[0] -notin ($SubFolderNames) } | % {
-        $UserName = ($_.UserPrincipalName -split "@")[0]
+        $UserName = ($_.AdditionalProperties.userPrincipalName -split "@")[0]
         Write-Host "    Aanmaken map $UserName"
         Add-PnPFolder -Name $UserName -Folder $SharedDocsName/$StudentDocs
         Set-PnPFolderPermission -List $SharedDocsName/$StudentDocs -Identity "$SharedDocsName/$StudentDocs/$UserName" -User $_.UserPrincipalName -AddRole $EditRole -ClearExisting
