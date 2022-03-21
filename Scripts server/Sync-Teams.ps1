@@ -139,7 +139,7 @@ Import-Excel "$FileLocation\teams.xlsx" | Select -ExpandProperty Klas -Unique | 
         $UserName = ($_.AdditionalProperties.userPrincipalName -split "@")[0]
         Write-Host "    Aanmaken map $UserName"
         Add-PnPFolder -Name $UserName -Folder $SharedDocsName/$StudentDocs
-        Set-PnPFolderPermission -List $SharedDocsName/$StudentDocs -Identity "$SharedDocsName/$StudentDocs/$UserName" -User $_.UserPrincipalName -AddRole $EditRole -ClearExisting
+        Set-PnPFolderPermission -List $SharedDocsName/$StudentDocs -Identity "$SharedDocsName/$StudentDocs/$UserName" -User $UserName -AddRole $EditRole -ClearExisting
     }
     $Subfolders | ? Name -NotIn $UserNames | % {
         Write-Host "    Verwijderen $($_.Name)"
