@@ -125,8 +125,7 @@ Import-Excel "$FileLocation\teams.xlsx" | Select -ExpandProperty Klas -Unique | 
     $Members  = Get-PnPGroup -AssociatedMemberGroup
     $Users = Get-MgGroupMember -GroupId $Group.Id -Property @('displayName','id','userPrincipalName')
 
-    $Channel = Invoke-GraphRequest -Uri "https://graph.microsoft.com/beta/teams/$($Group.Id)/channels"
-    $Channel = Get-MgTeamChannel -TeamId $Group.Id -Filter "displayName eq '$StudentDocs'"
+    $Channel = Get-MgTeamChannel -TeamId $Group.Id | ? DisplayName -Match $StudentDocs
     if (-not $Channel) {
         Write-Host "    Kanaal aanmaken..."
         $Channel = New-MgTeamChannel -TeamId $Group.Id -DisplayName $StudentDocs -ErrorAction Stop
