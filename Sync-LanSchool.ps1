@@ -1,0 +1,50 @@
+$Class = [PSCustomObject][Ordered]@{
+    sourcedId = "23456"
+    status = ""
+    dateLastModified = ""
+    title =""
+    grades =""
+    courseSourcedId ="1_23456"
+    classCode = ""
+    classType = ""
+    location ="" 
+    schoolSourcedId =""
+    termSourcedIds =""
+    subjects=""
+    subjectCodes=""
+    periods=""
+} 
+
+$Student = [PSCustomObject][Ordered]@{
+    sourcedId =""
+    status=""
+    dateLastModified=""
+    enabledUser=$true
+    orgSourcedIds=""
+    role="student|teacher"
+    username=""
+    userIds="{FED:12345}"
+    givenName=""
+    familyName=""
+    middleName=""
+    identifier=""
+    email=""
+    sms=""
+    phone=""
+    agentSourcedIds=""
+    grades=""
+    password=""
+}
+
+$Enrollment = [PSCustomObject]@{
+    sourcedId=""
+    status=""
+    dateLastModified=""
+    classSourcedId="zie_hierboven"
+    schoolSourcedId=""
+    userSourcedId="zie_hierboven"
+    role="student|teacher"
+    primary=""
+    beginDate=""
+    endDate=""
+}

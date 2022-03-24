@@ -11,11 +11,17 @@ $ExcelData = Import-Excel $InputFile | ? { $_.'Toestel ID' -and $_.'Toestel ID' 
 Write-Host "Resetten van $($ExcelData.Count) laptops..."
 $DevicesToReset = @()
 $ExcelData | % {
-    Write-Host "$($_.'Toestel ID'): $($_.toestel) van $($_.Gebruiker) uit $($_.Klas)"                                                                                                                                          
+    Write-Host "$($_.'Toestel ID'): $($_.toestel) van $($_.Gebruiker) uit $($_.Klas)"
+    $Body = [PSCustomObject]@{
+        keepEnrollmentData = $false
+    }
+    $Headers = [PSCustomObject][Ordered]@{"Content-Type"="application/json"}
     $DevicesToReset += [PSCustomObject][Ordered]@{
         Id=$_.Toestel
         Method='POST'
         Url="/deviceManagement/managedDevices/$($_.'Toestel ID')/wipe"
+        Headers=$Headers
+        Body=$Body
     }
 }
 

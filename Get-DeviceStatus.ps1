@@ -34,7 +34,7 @@ for($i=0;$i -lt $DevicesToQuery.count;$i+=20){
         $DeviceData += [PSCustomObject]@{
             'Toestel ID' = $Body.id
             Toestel = $Body.deviceName
-            Status = ($Body.deviceActionResults | ? actionName -eq "wipe") ?? "not started"
+            Status = $Body.managementState
         }
     }
 }
