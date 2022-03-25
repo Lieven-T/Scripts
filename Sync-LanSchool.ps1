@@ -6,6 +6,7 @@ $Assignments = @()
 $TenantID = "82812c36-6990-4cdc-a7f0-c481f0f68262"
 $ClassId = 0
 $UserId = 0
+$EnrollmentId = 0
 Get-MgGroup -Filter "startswith(displayname,'2122_')" -All | ? DisplayName -match "2122_(3BO1|3BW)" | % {
     $Class = $_
     $ClassId++
@@ -15,11 +16,11 @@ Get-MgGroup -Filter "startswith(displayname,'2122_')" -All | ? DisplayName -matc
         dateLastModified = ""
         title = $_.DisplayName
         grades = ""
-        courseSourcedId = "1_$($_.Id)"
+        courseSourcedId = "1_$($ClassId)"
         classCode = ""
         classType = "homeroom"
         location = "" 
-        schoolSourcedId = $TenantID
+        schoolSourcedId = 1
         termSourcedIds = "2122"
         subjects=""
         subjectCodes=""
@@ -28,14 +29,13 @@ Get-MgGroup -Filter "startswith(displayname,'2122_')" -All | ? DisplayName -matc
     Get-MgGroupMember -GroupId $_.Id -Property @('givenName','surname','id','userPrincipalName') | ? displayname -notmatch "adweaver" | % {
         if ($_.AdditionalProperties.displayname -match "ADWeaver") { return }
         $UserId++
+        $EnrollmentId++
         $Users += [PSCustomObject][Ordered]@{
             sourcedId = $UserId
             status = ""
             dateLastModified = ""
             enabledUser = "true"
-            orgSourcedIds = $TenantID
-
-            
+            orgSourcedIds = "1"
             role = "student"
             username = $_.AdditionalProperties.userPrincipalName
             userIds = ""
@@ -52,12 +52,12 @@ Get-MgGroup -Filter "startswith(displayname,'2122_')" -All | ? DisplayName -matc
         }   
 
         $Assignments += [PSCustomObject]@{
-            sourcedId="$($Class.id)-$($_.id)"
+            sourcedId=$EnrollmentId
             status = ""
             dateLastModified = ""
-            classSourcedId=$Class.Id
-            schoolSourcedId = $TenantID
-            userSourcedId = $_.Id
+            classSourcedId=$ClassId
+            schoolSourcedId = 1
+            userSourcedId = $UserId
             role = "student"
             primary = ""
             beginDate = ""
@@ -67,12 +67,14 @@ Get-MgGroup -Filter "startswith(displayname,'2122_')" -All | ? DisplayName -matc
 
     Get-MgGroupOwner -GroupId $_.Id -Property @('givenName','surname','id','userPrincipalName') | % {
         if ($_.AdditionalProperties.displayname -match "ADWeaver") { return }
+        $UserId++
+        $EnrollmentId++
         $Users += [PSCustomObject][Ordered]@{
-            sourcedId = $_.id
+            sourcedId = $UserId
             status = ""
             dateLastModified = ""
             enabledUser = "true"
-            orgSourcedIds = $TenantID
+            orgSourcedIds = 1
             role = "teacher"
             username = $_.AdditionalProperties.userPrincipalName
             userIds = ""
@@ -86,14 +88,15 @@ Get-MgGroup -Filter "startswith(displayname,'2122_')" -All | ? DisplayName -matc
             agentSourcedIds = ""
             grades = ""
             password = ""
+            
         }        
         $Assignments += [PSCustomObject]@{
-            sourcedId = "$($Class.id)-$($_.id)"
+            sourcedId = $EnrollmentId
             status = ""
             dateLastModified = ""
-            classSourcedId = $Class.Id
-            schoolSourcedId = $TenantID
-            userSourcedId = $_.Id
+            classSourcedId = $ClassId
+            schoolSourcedId = 1
+            userSourcedId = $UserId
             role = "teacher"
             primary = ""
             beginDate = ""
