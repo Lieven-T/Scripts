@@ -24,7 +24,7 @@ $Store.Close()
 
 $ClientID="b655fe66-1bc3-4165-bf76-c3fcc03b5dee"
 $TenantID="82812c36-6990-4cdc-a7f0-c481f0f68262"
-$ThumbPrint="2DECF1348FF21B780F45D316A039B5EB4C6312F7"
+$ThumbPrint="BFDA40AA94DAD37281EBBC8D7671EBB383A6D60C"
 Connect-Graph -TenantId $TenantID -AppId $ClientID -CertificateThumbprint $Thumbprint
 
 $Date = Get-Date
