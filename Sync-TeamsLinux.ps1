@@ -136,7 +136,7 @@ Import-Excel $ExcelLocation | Select -ExpandProperty Klas -Unique | % {
     $Group = Get-MgGroup -Filter "displayName eq '$ClassTeam'" -ErrorAction Stop
     $Site = Invoke-GraphRequest -Uri "https://graph.microsoft.com/beta/groups/$($Group.Id)/sites/root"
     $SiteUrl = $Site.webUrl
-    Connect-PnPOnline -Url $SiteUrl -Thumbprint $Certificate.Thumbprint -ClientId $ClientID -Tenant $TenantID -ErrorAction Stop
+    Connect-PnPOnline -Url $SiteUrl -Thumbprint $Thumbprint -ClientId $ClientID -Tenant $TenantID -ErrorAction Stop
     $Roles = Get-PnPRoleDefinition
     $EditRole = ($roles | ? RoleTypeKind -eq "Contributor").Name
     $ReadRole = ($roles | ? RoleTypeKind -eq "Reader").Name
