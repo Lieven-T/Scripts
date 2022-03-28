@@ -26,7 +26,8 @@ Get-MgGroup -Filter "startswith(displayname,'2122_')" -All | ? DisplayName -matc
         periods=""
     } 
     Get-MgGroupMember -GroupId $_.Id -Property @('givenName','surname','id','userPrincipalName') | ? displayname -notmatch "adweaver" | % {
-        if ($_.AdditionalProperties.displayname -match "ADWeaver") { return }
+        $AzureUserID = $_.Id
+        if (($_.AdditionalProperties.displayname -match "ADWeaver") -or ($Users | ? sourceId -eq $AzureUserID)) { return }
         $UserId++
         $Users += [PSCustomObject][Ordered]@{
             sourcedId = $UserId
@@ -66,7 +67,8 @@ Get-MgGroup -Filter "startswith(displayname,'2122_')" -All | ? DisplayName -matc
     }
 
     Get-MgGroupOwner -GroupId $_.Id -Property @('givenName','surname','id','userPrincipalName') | % {
-        if ($_.AdditionalProperties.displayname -match "ADWeaver") { return }
+        $AzureUserID = $_.Id
+        if (($_.AdditionalProperties.displayname -match "ADWeaver") -or ($Users | ? sourceId -eq $AzureUserID)) { return }
         $Users += [PSCustomObject][Ordered]@{
             sourcedId = $_.id
             status = ""
