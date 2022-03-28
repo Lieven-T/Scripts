@@ -1,11 +1,26 @@
-﻿# Certificate import: https://github.com/PowerShell/PowerShell/issues/1865
-
-######################
+﻿######################
 ### INITIALIZATION ###
 ######################
 
 $LogLocation = "~/log"
 $YearCode = "2122_"
+
+$StoreName = [System.Security.Cryptography.X509Certificates.StoreName]
+$StoreLocation = [System.Security.Cryptography.X509Certificates.StoreLocation]
+$OpenFlags = [System.Security.Cryptography.X509Certificates.OpenFlags]
+$Store = [System.Security.Cryptography.X509Certificates.X509Store]::new(
+    $StoreName::My, $StoreLocation::CurrentUser)
+
+# Get a certificate
+$X509Certificate2 = [System.Security.Cryptography.X509Certificates.X509Certificate2]
+$CertPath = (Resolve-Path '~/graph.pfx').Path
+$Cert = $X509Certificate2::New($CertPath, 'test')
+
+# Open the store, Add the cert, Close the store.
+$Store.Open($OpenFlags::ReadWrite)
+$Store.Add($Cert)
+$Store.Close()
+
 
 $ClientID="b655fe66-1bc3-4165-bf76-c3fcc03b5dee"
 $TenantID="82812c36-6990-4cdc-a7f0-c481f0f68262"
