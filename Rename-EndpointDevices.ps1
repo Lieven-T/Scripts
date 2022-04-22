@@ -69,8 +69,8 @@ foreach ($i in $FileList) {
         }
     }
 
-    Write-Host "Request verzenden..."
     for($i=0;$i -lt $DevicesToRename.count;$i+=20){                                                                                                                                              
+        Write-Progress -Activity "Requests verzenden..." -Status "$i/$($DevicesToRename.Count) gedaan" -PercentComplete ($i / $DevicesToRename.Count * 100)
         $Request = @{}                
         $Request['requests'] = ($DevicesToRename[$i..($i+19)])
         $RequestBody = $Request | ConvertTo-Json -Depth 3
@@ -97,12 +97,12 @@ foreach ($i in $FileList) {
         $SignpostDeviceName = $_.Volgnummer
         if ($AutopilotDevice.displayName -ne $SignpostDeviceName -or $AutopilotDevice.groupTag -ne $Leveringsnummer) {
             Write-Host "Toestel $($SignpostDeviceName):`n    $($AutopilotDevice.displayName) -> $SignpostDeviceName`n    $($AutopilotDevice.groupTag) -> $Leveringsnummer"
-            $Headers = [PSCustomObject][Ordered]@{"Content-Type"="application/json"}
-            $Body = [PSCustomObject][Ordered]@{ 
+            $Headers = @{"Content-Type"="application/json"}
+            $Body = @{ 
                 displayName=$SignpostDeviceName
                 groupTag=$Leveringsnummer
             }
-            $DevicesToRename += [PSCustomObject][Ordered]@{
+            $DevicesToRename += @{
                 id=$AutopilotDevice.id
                 Method="POST"
                 Url="deviceManagement/windowsAutopilotDeviceIdentities/$($AutopilotDevice.id)/updateDeviceProperties"
@@ -112,16 +112,26 @@ foreach ($i in $FileList) {
         }
     }
 
-    Write-Host "Request verzenden..."
-    for($i=0;$i -lt $DevicesToRename.count;$i+=20){                                                                                                                                              
+    # Batch requests
+<#    for($i=0;$i -lt $DevicesToRename.Count;$i+=20){     
+        Write-Progress -Activity "Requests verzenden..." -Status "$i/$($DevicesToRename.Count) gedaan" -PercentComplete ($i / $DevicesToRename.Count * 100)
         $Request = @{}                
         $Request['requests'] = ($DevicesToRename[$i..($i+19)])
         $RequestBody = $Request | ConvertTo-Json -Depth 3
-        $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/beta/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
-        $Response.responses | ? status -ne "204" | % {
+        $Response = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/v1.0/$batch' -Body $RequestBody -Method POST -ContentType "application/json"
+        $Response.responses | ? { -not ($_.status -eq "200" -or $_.status -eq "204") } | % {
             Write-Error "Probleem met $($_.id): $($_.body.error.message)"
         }
-    
-    }
+    }#>
 
+    # Single requests
+    $i = 0
+    $DevicesToRename | % {
+        Write-Progress -Activity "Requests verzenden..." -Status "$i/$($DevicesToRename.Count) gedaan" -PercentComplete ($i / $DevicesToRename.Count * 100)
+        Invoke-GraphRequest -Uri "https://graph.microsoft.com/v1.0/$($_.Url)" -Body $_.Body -Method $_.Method -Headers $_.Headers 
+        <#$Response.responses | ? { -not ($_.status -eq "200" -or $_.status -eq "204") } | % {
+            Write-Error "Probleem met $($_.id): $($_.body.error.message)"
+        }#>
+        $i++
+    }
 }
