@@ -54,7 +54,7 @@ $ClassGroups | ? { ($_.DisplayName -replace "romerocollege.*_") -notin $ClassCod
     $Members = @([PSCustomObject][Ordered]@{
          "@odata.type" = "#microsoft.graph.aadUserConversationMember"
          "roles" = @("owner")
-         "user@odata.bind" = "https://graph.microsoft.com/beta/users('0040b377-61d8-43db-94f5-81374122dc7e')"
+         "user@odata.bind" = "https://graph.microsoft.com/beta/users('ccce0019-af2c-45f6-8053-f7fe272674fb')"
       }
     )
     $Headers = [PSCustomObject][Ordered]@{"Content-Type"="application/json"}
