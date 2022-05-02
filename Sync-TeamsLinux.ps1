@@ -47,24 +47,31 @@ $ClassGroups | ? { ($_.DisplayName -replace "romerocollege.*_") -notin $ClassCod
     $TeamName = "$YearCode$ClassName"
     Write-Host "Aanmaken van klas: $TeamName"
     $FunSettings = [PSCustomObject][Ordered]@{
-        allowGiphy=$false
-        allowStickersAndMemes= $false
-        allowCustomMemes=$false
+        allowGiphy = $false
+        allowStickersAndMemes = $false
+        allowCustomMemes = $false
     }
+    $Members = @([PSCustomObject][Ordered]@{
+         "@odata.type" = "#microsoft.graph.aadUserConversationMember"
+         "roles" = @("owner")
+         "user@odata.bind" = "https://graph.microsoft.com/beta/users('0040b377-61d8-43db-94f5-81374122dc7e')"
+      }
+    )
     $Headers = [PSCustomObject][Ordered]@{"Content-Type"="application/json"}
     $Body = [PSCustomObject][Ordered]@{
-        "template@odata.bind"="https://graph.microsoft.com/beta/teamsTemplates('educationClass')"
-        displayName=$TeamName
-        description=$TeamName
-        mailNickName=$TeamName
-        funSettings=$FunSettings
+        "template@odata.bind" = "https://graph.microsoft.com/beta/teamsTemplates('educationClass')"
+        displayName = $TeamName
+        description = $TeamName
+        mailNickName = $TeamName
+        funSettings = $FunSettings
+        members = $Members
     }
     $TeamsToCreate += [PSCustomObject][Ordered]@{
-        Id=$TeamName
-        Method='POST'
-        Url="/teams"
-        Headers=$Headers
-        Body=$Body
+        Id = $TeamName
+        Method = 'POST'
+        Url = "/teams"
+        Headers = $Headers
+        Body = $Body
     }
 }
 
@@ -84,9 +91,9 @@ for($i=0;$i -lt $TeamsToCreate.count;$i+=20) {
 $Actions = @()
 $InitialResponses | % {
     $Actions += @([PSCustomObject][Ordered]@{
-        Id=$_.id
-        Method='GET'
-        Url=$_.headers.Location
+        Id = $_.id
+        Method = 'GET'
+        Url = $_.headers.Location
     })
 }
 
@@ -165,4 +172,4 @@ Import-Excel $ExcelLocation | Select -ExpandProperty Klas -Unique | % {
 }
 
 Stop-Transcript
-Send-MailMessage -From 'Server Alerter CVD <alerter-cvd@romerocollege.be>' -To 'it-cvd@romerocollege.be' -Subject 'Sync Teams' -Attachments $TranscriptLocation -SmtpServer "romerocollege-be.mail.protection.outlook.com"
+Send-MailMessage -From 'Server Alerter CVD <alerter-cvd@romerocollege.be>' -To 'it-cvd@romerocollege.be' -Subject ((Get-Error) ? 'ERROR --- Sync Teams' : 'Sync Teams') -Attachments $TranscriptLocation -SmtpServer "romerocollege-be.mail.protection.outlook.com"
