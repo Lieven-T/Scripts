@@ -136,7 +136,11 @@ $SharedDocsName = "Gedeelde documenten"
 $StudentDocs = "Documenten Leerlingen"
 $ExcelLocation = "~/teams.xlsx" 
 
-Import-Excel $ExcelLocation | Select -ExpandProperty Klas -Unique | % {
+$TempError = $error
+$error.Clear()
+$StudentExcel = Import-Excel $ExcelLocation 
+$error.Clear()
+$StudentExcel | Select -ExpandProperty Klas -Unique | % {
     $Class = $_
     $ClassTeam = "$YearCode$_"
     Write-Host "Verwerken klas $Class"
@@ -172,4 +176,4 @@ Import-Excel $ExcelLocation | Select -ExpandProperty Klas -Unique | % {
 }
 
 Stop-Transcript
-Send-MailMessage -From 'Server Alerter CVD <alerter-cvd@romerocollege.be>' -To 'it-cvd@romerocollege.be' -Subject ((Get-Error) ? 'ERROR --- Sync Teams' : 'Sync Teams') -Attachments $TranscriptLocation -SmtpServer "romerocollege-be.mail.protection.outlook.com"
+Send-MailMessage -From 'Server Alerter CVD <alerter-cvd@romerocollege.be>' -To 'it-cvd@romerocollege.be' -Subject (($error || $TempError) ? 'ERROR --- Sync Teams' : 'Sync Teams') -Attachments $TranscriptLocation -SmtpServer "romerocollege-be.mail.protection.outlook.com"
